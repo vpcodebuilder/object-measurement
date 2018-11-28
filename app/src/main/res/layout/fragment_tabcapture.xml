@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent" >
+    
+    <TextView
+        android:id="@+id/lblResultImage"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical|center_horizontal"
+        android:layout_marginLeft="8dp"
+        android:layout_marginRight="8dp"
+        android:layout_marginTop="8dp"
+        android:gravity="top|center"
+        android:text="@string/lblResultImage_caption"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
+        
+	<GridLayout
+	    android:layout_width="fill_parent"
+	    android:layout_height="wrap_content"
+	    android:columnCount="2"
+	    android:orientation="horizontal"
+	    android:rowCount="2" >
+        
+        <TextView
+            android:id="@+id/lblObjectMeterWidth"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="8dp"
+            android:layout_marginRight="8dp"
+            android:layout_marginTop="8dp"
+            android:text="@string/lblObjectMeterWidth_caption"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+		    
+		    <TextView
+		        android:id="@+id/lblObjectMeterWidthValue"
+		        android:layout_width="wrap_content"
+		        android:layout_height="wrap_content"
+		        android:layout_marginLeft="8dp"
+		        android:layout_marginRight="8dp"
+		        android:layout_marginTop="8dp"
+		        android:textAppearance="?android:attr/textAppearanceMedium" />
+		    
+		    <TextView
+		        android:id="@+id/lblObjectMeterHeight"
+		        android:layout_width="wrap_content"
+		        android:layout_height="wrap_content"
+		        android:layout_marginLeft="8dp"
+		        android:layout_marginRight="8dp"
+		        android:layout_marginTop="8dp"
+		        android:text="@string/lblObjectMeterHeight_caption"
+		        android:textAppearance="?android:attr/textAppearanceMedium" />
+		    
+		    <TextView
+		        android:id="@+id/lblObjectMeterHeightValue"
+		        android:layout_width="wrap_content"
+		        android:layout_height="wrap_content"
+		        android:layout_marginLeft="8dp"
+		        android:layout_marginRight="8dp"
+		        android:layout_marginTop="8dp"
+		        android:textAppearance="?android:attr/textAppearanceMedium" />
+        
+    </GridLayout>
+                    
+	<ImageView
+	    android:id="@+id/imgResult"
+	    android:layout_width="wrap_content"
+	    android:layout_height="wrap_content"
+	    android:layout_gravity="center_vertical|center_horizontal"
+	    android:layout_marginTop="8dp"
+	    android:contentDescription="@string/img_description" />
+
+</LinearLayout>

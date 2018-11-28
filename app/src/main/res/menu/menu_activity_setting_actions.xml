@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/action_activity_setting_import"
+        android:title="@string/action_activity_setting_import"
+        android:icon="@drawable/import_file"
+        android:showAsAction="ifRoom|withText" />
+    <item
+        android:id="@+id/action_activity_setting_export"
+        android:title="@string/action_activity_setting_export"
+        android:icon="@drawable/export_file"
+        android:showAsAction="ifRoom|withText" />
+</menu>

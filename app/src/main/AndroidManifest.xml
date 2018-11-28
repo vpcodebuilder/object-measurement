@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.vpcodebuilder.objectmeasurement">
+
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name">
+
+        <activity
+            android:name=".MainActivity"
+            android:label="@string/app_name">
+
+            
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+        <activity
+            android:name=".MeasurementActivity"
+            android:label="@string/app_name">
+
+            <!--
+            When your application is running on Android 4.0 (API level 14) and higher,
+            there's an extra mode available for the action bar called "split action bar."
+            When you enable split action bar, a separate bar appears at the bottom of
+            the screen to display all action items when the activity is running on a narrow screen
+            (such as a portrait-oriented handset). Splitting the action bar to separate the action
+            items ensures that a reasonable amount of space is available to display all
+            your action items on a narrow screen, while leaving room for navigation and title elements at the top.
+            -->
+            android:uiOptions="splitActionBarWhenNarrow">
+        </activity>
+        <activity
+            android:name=".SettingActivity"
+            android:label="@string/app_name" />
+        <activity
+            android:name=".DirectoryPickerActivity"
+            android:label="@string/app_name" />
+        <activity
+            android:name=".CaptureDetectActivity"
+            android:label="@string/app_name"/>
+    </application>
+
+</manifest>

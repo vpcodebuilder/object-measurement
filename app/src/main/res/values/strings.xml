@@ -1,0 +1,34 @@
+<resources>
+    <string name="app_name">Object Measurement</string>
+    <string name="btSetting_caption">Setting</string>
+
+    <string name="action_camera">Open Camera</string>
+    <string name="action_gallery">Select Image</string>
+    <string name="action_setting">Setting</string>
+    <string name="action_back">Back</string>
+    <string name="action_process">Process</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+
+    <string name="action_activity_setting_import">Import file</string>
+    <string name="action_activity_setting_export">Export file</string>
+
+    <string name="lblResultImage_caption">Photo processing</string>
+    <string name="lblObjectMeterWidth_caption">Width:</string>
+    <string name="lblObjectMeterHeight_caption">Height:</string>
+    <string name="lblSignWidth_caption">Sign width(mm.)</string>
+    <string name="lblSignHeight_caption">Sign height(mm.)</string>
+    <string name="lblHueRange_caption">Color hue</string>
+    <string name="lblSaturationRange_caption">Color saturation</string>
+    <string name="lblValueRange_caption">Color value</string>
+    <string name="lblBefore_caption">Original</string>
+    <string name="lblAfter_caption">Result</string>
+
+    <string name="img_description"></string>
+    <string name="btCapture_caption">Take photo for setting</string>
+    <string name="btSave_caption">Save</string>
+    <string name="btClose_caption">Close</string>
+    <string name="capture_normal">General photo</string>
+    <string name="capture_history">History</string>
+    <string name="capture_om">Calculate dimension</string>
+</resources>

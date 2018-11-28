@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/capture_normal"
+        android:title="@string/capture_normal"/>
+    <item
+        android:id="@+id/capture_history"
+        android:title="@string/capture_history" />
+    <item
+        android:id="@+id/capture_om"
+        android:title="@string/capture_om" />
+</menu>
