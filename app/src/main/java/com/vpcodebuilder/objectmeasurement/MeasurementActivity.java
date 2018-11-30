@@ -122,7 +122,7 @@ public class MeasurementActivity extends Activity {
 			progressDialog = null;
 		}
 
-		progressDialog = ProgressDialog.show(MeasurementActivity.this, "โปรดรอสักครู่", "กำลังประมวลผล...", true);
+		progressDialog = ProgressDialog.show(MeasurementActivity.this, "Please wait", "Processing...", true);
 		final Handler uiHandler = new Handler();
 
 		new Thread(new Runnable() {
@@ -202,15 +202,15 @@ public class MeasurementActivity extends Activity {
 	private void cancel() {
 		// ถามการยืนยันการยกเลิก
 		AlertDialog.Builder adlg = new AlertDialog.Builder(this);
-		String message = "คุณต้องการยกเลิกการทำงานใช่หรือไม่?";
+		String message = "Are you sure you want to cancel?";
 
 		if (graphicMeasurement.hasLockMeasurement())
-			message = "คุณต้องการยกเลิกไปยังกระบวนการก่อนหน้าใช่หรือไม่?";
+			message = "Are you sure you want back to original?";
 
-		adlg.setTitle("ยืนยันการยกเลิก");
+		adlg.setTitle("Confirm cancel");
 		adlg.setMessage(message);
-		adlg.setNegativeButton("ไม่", null);
-		adlg.setPositiveButton("ใช่", new AlertDialog.OnClickListener() {
+		adlg.setNegativeButton("No", null);
+		adlg.setPositiveButton("Yes", new AlertDialog.OnClickListener() {
 			public void onClick(DialogInterface dialog, int arg1) {
 				if (graphicMeasurement.hasLockMeasurement()) {
 					graphicMeasurement.undoProcess();
@@ -233,8 +233,8 @@ public class MeasurementActivity extends Activity {
 
 	private void showErrorDialog(Exception ex) {
 		AlertDialog.Builder adlg = new AlertDialog.Builder(this);
-		adlg.setTitle("เกิดข้อผิดพลาด");
-		adlg.setMessage("พบข้อผิดพลาดในการทำงาน\n" + ex.toString());
+		adlg.setTitle("Error");
+		adlg.setMessage("Operation error\n" + ex.toString());
 		adlg.show();
 	}
 
