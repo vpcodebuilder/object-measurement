@@ -1,34 +1,95 @@
 <resources>
     <string name="app_name">Object Measurement</string>
-    <string name="btSetting_caption">Setting</string>
+    <string name="title_measurement">Measure object</string>
+    <string name="title_settings">Marker &amp; detection</string>
+    <string name="title_capture">Capture</string>
 
-    <string name="action_camera">Open Camera</string>
-    <string name="action_gallery">Select Image</string>
-    <string name="action_setting">Setting</string>
-    <string name="action_back">Back</string>
-    <string name="action_process">Process</string>
+    <!-- Main screen -->
+    <string name="tab_side_a">Side A</string>
+    <string name="tab_side_b">Side B</string>
+    <string name="action_camera">Camera</string>
+    <string name="action_gallery">Gallery</string>
+    <string name="action_setting">Settings</string>
+    <string name="action_share">Share result</string>
+    <string name="action_export">Save to gallery</string>
+    <string name="action_clear">Clear all</string>
+    <string name="label_width">Width</string>
+    <string name="label_height">Height</string>
+    <string name="empty_state_title">No measurement yet</string>
+    <string name="empty_state_body">Photograph your object together with the reference marker, then drag the box around the object.</string>
+    <string name="result_image_description">Measured photo with the selection box</string>
+    <string name="confidence_format">Marker match %1$d%%</string>
+    <string name="perspective_corrected">Perspective corrected</string>
+    <string name="perspective_uncorrected">Flat scale only — marker was not usable for perspective</string>
+
+    <!-- Capture screen -->
+    <string name="capture_hint_searching">Point at the marker…</string>
+    <string name="capture_hint_found">Marker locked — %1$d%%</string>
+    <string name="capture_hint_weak">Marker unstable — move closer or add light</string>
+    <string name="capture_hint_no_marker_size">Set the marker size in Settings first</string>
+    <string name="capture_take">Capture</string>
+    <string name="capture_torch">Torch</string>
+    <string name="capture_auto">Auto</string>
+    <string name="capture_auto_on">Auto capture on</string>
+    <string name="capture_auto_off">Auto capture off</string>
+    <string name="capture_torch_unavailable">Torch is not available on this camera</string>
+    <string name="capture_permission_required">Camera permission is required to capture</string>
+    <string name="capture_failed">Could not save the captured frame</string>
+
+    <!-- Measurement screen -->
+    <string name="action_autofit">Auto-fit</string>
     <string name="action_save">Save</string>
     <string name="action_cancel">Cancel</string>
+    <string name="action_reset">Reset box</string>
+    <string name="measure_no_marker">No marker was detected in this photo, so it cannot be scaled.</string>
+    <string name="measure_no_marker_size">Set the marker\'s real width and height in Settings before measuring.</string>
+    <string name="measure_prompt">Drag the box around the object</string>
+    <string name="measure_skew_warning">Steep camera angle — get more square-on for a better reading</string>
+    <string name="confirm_discard_title">Discard measurement?</string>
+    <string name="confirm_discard_body">The selection and the captured photo will be thrown away.</string>
+    <string name="confirm_discard_yes">Discard</string>
+    <string name="confirm_clear_title">Clear all measurements?</string>
+    <string name="confirm_clear_body">Both stored sides will be removed.</string>
+    <string name="confirm_clear_yes">Clear</string>
 
-    <string name="action_activity_setting_import">Import file</string>
-    <string name="action_activity_setting_export">Export file</string>
+    <!-- Settings screen -->
+    <string name="settings_marker_section">Reference marker</string>
+    <string name="settings_preset">Preset</string>
+    <string name="settings_marker_width">Marker width (mm)</string>
+    <string name="settings_marker_height">Marker height (mm)</string>
+    <string name="settings_units">Display unit</string>
+    <string name="settings_detection_section">Detection</string>
+    <string name="settings_mode">Detection mode</string>
+    <string name="settings_mode_color">Colour — find the marker by its colour</string>
+    <string name="settings_mode_edge">Edges — any high-contrast rectangle</string>
+    <string name="settings_mode_auto">Automatic — colour first, then edges</string>
+    <string name="settings_sample_photo">Load a test photo</string>
+    <string name="settings_sample_hint">Tap the marker in the left image to set its colour range automatically.</string>
+    <string name="settings_tap_to_sample">Tap the marker in this photo</string>
+    <string name="settings_before">Photo</string>
+    <string name="settings_after">What the detector sees</string>
+    <string name="settings_hue">Hue</string>
+    <string name="settings_saturation">Saturation</string>
+    <string name="settings_value">Brightness</string>
+    <string name="settings_range_format">%1$d – %2$d</string>
+    <string name="settings_range_wrapping">%1$d – %2$d (wraps past red)</string>
+    <string name="settings_reset_color">Reset colour range</string>
+    <string name="settings_detected">Marker found — %1$d%% match</string>
+    <string name="settings_not_detected">No marker found with these settings</string>
+    <string name="action_import_profile">Import profile</string>
+    <string name="action_export_profile">Export profile</string>
+    <string name="settings_import_ok">Imported %1$d settings</string>
+    <string name="settings_export_ok">Profile exported</string>
+    <string name="settings_saved">Settings saved</string>
+    <string name="settings_invalid_size">Enter a marker width and height greater than zero</string>
 
-    <string name="lblResultImage_caption">Photo processing</string>
-    <string name="lblObjectMeterWidth_caption">Width:</string>
-    <string name="lblObjectMeterHeight_caption">Height:</string>
-    <string name="lblSignWidth_caption">Sign width(mm.)</string>
-    <string name="lblSignHeight_caption">Sign height(mm.)</string>
-    <string name="lblHueRange_caption">Color hue</string>
-    <string name="lblSaturationRange_caption">Color saturation</string>
-    <string name="lblValueRange_caption">Color value</string>
-    <string name="lblBefore_caption">Original</string>
-    <string name="lblAfter_caption">Result</string>
-
-    <string name="img_description"></string>
-    <string name="btCapture_caption">Take photo for setting</string>
+    <!-- Shared -->
     <string name="btSave_caption">Save</string>
     <string name="btClose_caption">Close</string>
-    <string name="capture_normal">General photo</string>
-    <string name="capture_history">History</string>
-    <string name="capture_om">Calculate dimension</string>
+    <string name="dialog_error">Something went wrong</string>
+    <string name="error_load_image">The photo could not be opened.</string>
+    <string name="error_no_opencv">OpenCV could not be loaded on this device.</string>
+    <string name="error_detect_failed">The marker could not be found. Try again with better light, or tune the colour range in Settings.</string>
+    <string name="saved_to_gallery">Saved to your gallery</string>
+    <string name="nothing_to_share">Measure something first</string>
 </resources>

@@ -1,56 +1,57 @@
 package com.vpcodebuilder.objectmeasurement;
 
-import android.app.Activity;
-import android.app.AlertDialog;
+import android.content.Context;
 import android.content.DialogInterface;
 
-public class DialogHelper {
-    public enum DialogResult {
-        OK,
-        CANCEL,
-        YES,
-        NO
+import androidx.annotation.StringRes;
+
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+
+/**
+ * Small dialog wrappers.
+ *
+ * <p>The previous {@code showConfirmDialog} returned a static field immediately
+ * after calling {@code show()} — before the user had touched anything — so every
+ * caller acted on a stale answer. Confirmation is now delivered through a
+ * callback, which is the only way it can work.</p>
+ */
+public final class DialogHelper {
+
+    private DialogHelper() {
     }
 
-    private static DialogResult result = DialogResult.OK;
-
-    public static DialogResult showDialog(Activity activity, String title, String message) {
-        AlertDialog.Builder dialog = new AlertDialog.Builder(activity);
-
-        dialog.setTitle(title);
-        dialog.setMessage(message);
-        dialog.setCancelable(false);
-        dialog.setPositiveButton("ตกลง", new AlertDialog.OnClickListener() {
-            public void onClick(DialogInterface dialog, int arg1) { }
-        });
-
-        dialog.show();
-
-        return result;
+    public static void alert(Context context, @StringRes int title, CharSequence message) {
+        new MaterialAlertDialogBuilder(context)
+                .setTitle(title)
+                .setMessage(message)
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
     }
 
-    public static DialogResult showConfirmDialog(Activity activity, String title, String message) {
-        DialogInterface.OnClickListener dialogClickListener = new DialogInterface.OnClickListener() {
-            public void onClick(DialogInterface dialog, int which) {
-                switch (which){
-                    case DialogInterface.BUTTON_POSITIVE:
-                        result = DialogResult.YES;
-                        break;
-                    case DialogInterface.BUTTON_NEGATIVE:
-                        result = DialogResult.NO;
-                        break;
-                }
-            }
-        };
+    public static void error(Context context, CharSequence message) {
+        alert(context, R.string.dialog_error, message);
+    }
 
-        AlertDialog.Builder dialog = new AlertDialog.Builder(activity);
+    public static void error(Context context, @StringRes int message, Throwable cause) {
+        CharSequence text = context.getString(message);
+        if (cause != null && cause.getMessage() != null) {
+            text = text + "\n\n" + cause.getMessage();
+        }
+        alert(context, R.string.dialog_error, text);
+    }
 
-        dialog.setTitle(title);
-        dialog.setMessage(message);
-        dialog.setNegativeButton("No", dialogClickListener);
-        dialog.setPositiveButton("Yes", dialogClickListener);
-        dialog.show();
-
-        return result;
+    public static void confirm(Context context,
+                               @StringRes int title,
+                               @StringRes int message,
+                               @StringRes int positiveLabel,
+                               Runnable onConfirmed) {
+        new MaterialAlertDialogBuilder(context)
+                .setTitle(title)
+                .setMessage(message)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(positiveLabel, (DialogInterface d, int which) -> {
+                    if (onConfirmed != null) onConfirmed.run();
+                })
+                .show();
     }
 }

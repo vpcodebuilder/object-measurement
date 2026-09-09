@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand_primary">#2E6BE6</color>
+    <color name="brand_on_primary">#FFFFFF</color>
+    <color name="brand_secondary">#00A37A</color>
+
+    <color name="detect_ok">#00E07A</color>
+    <color name="detect_weak">#FFB300</color>
+    <color name="detect_none">#FF5252</color>
+</resources>

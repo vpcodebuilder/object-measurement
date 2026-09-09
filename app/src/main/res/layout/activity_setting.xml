@@ -1,275 +1,331 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="fill_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    tools:ignore="NestedWeights" >
+    android:orientation="vertical">
 
-     <ScrollView
-         android:layout_width="fill_parent"
-         android:layout_height="0dp"
-         android:layout_weight="1"
-         android:fillViewport="true"
-         android:padding="8dp" >
-         
-         <LinearLayout 
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
             android:layout_width="match_parent"
-        	android:layout_height="wrap_content"
-        	android:orientation="vertical">
-        	
-             <TextView
-                 android:id="@+id/lblSignWidth"
-                 android:layout_width="match_parent"
-                 android:layout_height="wrap_content"
-                 android:layout_marginLeft="8dp"
-                 android:layout_marginRight="8dp"
-                 android:text="@string/lblSignWidth_caption"
-                 android:textAppearance="?android:attr/textAppearanceMedium" />
+            android:layout_height="?attr/actionBarSize"
+            app:title="@string/title_settings" />
+    </com.google.android.material.appbar.AppBarLayout>
 
-             <EditText
-                 android:id="@+id/txtSignWidth"
-                 android:layout_width="match_parent"
-                 android:layout_height="wrap_content"
-                 android:layout_marginLeft="8dp"
-                 android:layout_marginRight="8dp"
-                 android:layout_marginTop="4dp"
-                 android:ems="10"
-                 android:inputType="numberDecimal" >
-                 <requestFocus />
-             </EditText>
-             
-             <TextView
-                 android:id="@+id/lblSignHeight"
-                 android:layout_width="match_parent"
-                 android:layout_height="wrap_content"
-                 android:layout_marginLeft="8dp"
-                 android:layout_marginRight="8dp"
-                 android:layout_marginTop="4dp"
-                 android:text="@string/lblSignHeight_caption"
-                 android:textAppearance="?android:attr/textAppearanceMedium" />
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
 
-			<EditText
-                 android:id="@+id/txtSignHeight"
-                 android:layout_width="match_parent"
-                 android:layout_height="wrap_content"
-                 android:layout_marginLeft="8dp"
-                 android:layout_marginRight="8dp"
-                 android:layout_marginTop="4dp"
-                 android:ems="10"
-                 android:inputType="numberDecimal" >
-            </EditText>
-            
-			<Button
-			    android:id="@+id/btCapture"
-			    android:layout_width="match_parent"
-			    android:layout_height="wrap_content"
-			    android:layout_marginLeft="8dp"
-			    android:layout_marginRight="8dp"
-			    android:layout_marginTop="4dp"
-			    android:text="@string/btCapture_caption" />
-            
-			<HorizontalScrollView
-			    android:layout_width="match_parent"
-			    android:layout_height="wrap_content"
-			    android:layout_marginLeft="8dp"
-			    android:layout_marginRight="8dp"
-			    android:layout_marginTop="4dp" >
-                 
-			    <LinearLayout
-			        android:layout_width="wrap_content"
-			        android:layout_height="wrap_content"
-			        android:orientation="horizontal">
-        
-			        <ImageView
-			            android:id="@+id/imageBefore"
-			            android:layout_width="fill_parent"
-			            android:layout_height="wrap_content"
-			            android:adjustViewBounds="true"
-			            android:contentDescription="@string/img_description" />
-								
-					<ImageView
-					    android:id="@+id/imageAfter"
-					    android:layout_width="fill_parent"
-					    android:layout_height="wrap_content"
-					    android:adjustViewBounds="true"
-					    android:contentDescription="@string/img_description" />
-
-				</LinearLayout>
-			</HorizontalScrollView>
-
-			<LinearLayout 
-	            android:layout_width="match_parent"
-	        	android:layout_height="wrap_content"
-	        	android:orientation="horizontal">
-             
-	             <TextView
-	                 android:id="@+id/lblHueRange"
-	                 android:layout_width="wrap_content"
-	                 android:layout_height="wrap_content"
-	                 android:layout_marginLeft="8dp"
-	                 android:layout_marginRight="8dp"
-	                 android:layout_marginTop="4dp"
-	                 android:text="@string/lblHueRange_caption"
-	                 android:textAppearance="?android:attr/textAppearanceMedium" />
-
-	             <TextView
-	                 android:id="@+id/lblHueRangeValue"
-	                 android:layout_width="wrap_content"
-	                 android:layout_height="wrap_content"
-	                 android:layout_marginLeft="8dp"
-	                 android:layout_marginRight="8dp"
-	                 android:layout_marginTop="4dp"
-	                 android:textAppearance="?android:attr/textAppearanceMedium" />
-             </LinearLayout>
-             
-             <SeekBar
-                 android:id="@+id/sbHueUppper"
-                 android:layout_width="match_parent"
-                 android:layout_height="wrap_content"
-                 android:layout_marginTop="4dp"
-                 android:max="180" />
-             
-             <com.vpcodebuilder.objectmeasurement.GradientColorView
-                 android:id="@+id/colorRangeView"
-                 android:layout_width="match_parent"
-                 android:layout_height="48dp"
-                 android:layout_marginLeft="16dp"
-                 android:layout_marginRight="16dp"/>
-
-             <SeekBar
-                 android:id="@+id/sbHueLower"
-                 android:layout_width="match_parent"
-                 android:layout_height="wrap_content"
-                 android:max="180" />
-             
-             <LinearLayout 
-	            android:layout_width="match_parent"
-	        	android:layout_height="wrap_content"
-	        	android:orientation="horizontal">
-             
-	             <TextView
-	                 android:id="@+id/lblSaturationRange"
-	                 android:layout_width="wrap_content"
-	                 android:layout_height="wrap_content"
-	                 android:layout_marginLeft="8dp"
-	                 android:layout_marginRight="8dp"
-	                 android:layout_marginTop="4dp"
-	                 android:text="@string/lblSaturationRange_caption"
-	                 android:textAppearance="?android:attr/textAppearanceMedium" />
-
-	             <TextView
-	                 android:id="@+id/lblSaturationRangeValue"
-	                 android:layout_width="wrap_content"
-	                 android:layout_height="wrap_content"
-	                 android:layout_marginLeft="8dp"
-	                 android:layout_marginRight="8dp"
-	                 android:layout_marginTop="4dp"
-	                 android:textAppearance="?android:attr/textAppearanceMedium" />
-             </LinearLayout>
-             
-             <SeekBar
-                 android:id="@+id/sbSaturationUppper"
-                 android:layout_width="match_parent"
-                 android:layout_height="wrap_content"
-                 android:layout_marginTop="4dp"
-                 android:max="255" />
-
-             <SeekBar
-                 android:id="@+id/sbSaturationLower"
-                 android:layout_width="match_parent"
-                 android:layout_height="wrap_content"
-                 android:max="255" />
-             
-             <LinearLayout 
-	            android:layout_width="match_parent"
-	        	android:layout_height="wrap_content"
-	        	android:orientation="horizontal">
-             
-	             <TextView
-	                 android:id="@+id/lblValueRange"
-	                 android:layout_width="wrap_content"
-	                 android:layout_height="wrap_content"
-	                 android:layout_marginLeft="8dp"
-	                 android:layout_marginRight="8dp"
-	                 android:layout_marginTop="4dp"
-	                 android:text="@string/lblValueRange_caption"
-	                 android:textAppearance="?android:attr/textAppearanceMedium" />
-
-	             <TextView
-	                 android:id="@+id/lblValueRangeValue"
-	                 android:layout_width="wrap_content"
-	                 android:layout_height="wrap_content"
-	                 android:layout_marginLeft="8dp"
-	                 android:layout_marginRight="8dp"
-	                 android:layout_marginTop="4dp"
-	                 android:textAppearance="?android:attr/textAppearanceMedium" />
-             </LinearLayout>
-             
-             <SeekBar
-                 android:id="@+id/sbValueUppper"
-                 android:layout_width="match_parent"
-                 android:layout_height="wrap_content"
-                 android:layout_marginTop="4dp"
-                 android:max="255" />
-
-             <SeekBar
-                 android:id="@+id/sbValueLower"
-                 android:layout_width="match_parent"
-                 android:layout_height="wrap_content"
-                 android:max="255" />
-         </LinearLayout>
-    </ScrollView>
-    
-    <LinearLayout
-		android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="center_vertical">
-             
-        <View
-        	android:layout_width="match_parent"
-            android:layout_height="1dip"
-            android:background="#393b3e" />
-              
         <LinearLayout
-        	android:layout_width="fill_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">    
-                      
-            <Button
-                android:id="@+id/btSave"
-                style="?android:attr/borderlessButtonStyle"
-                android:layout_width="0dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- Reference marker -->
+            <TextView
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:padding="8dp"
-                android:text="@string/btSave_caption" />
+                android:text="@string/settings_marker_section"
+                android:textAppearance="@style/ValueLabel" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/settings_preset"
+                android:textAppearance="@style/CaptionLabel" />
+
+            <Spinner
+                android:id="@+id/spPreset"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:hint="@string/settings_marker_width">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/txtSignWidth"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="numberDecimal" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:hint="@string/settings_marker_height">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/txtSignHeight"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="numberDecimal" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/settings_units"
+                android:textAppearance="@style/CaptionLabel" />
+
+            <Spinner
+                android:id="@+id/spUnit"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp" />
 
             <View
-                android:layout_width="1dip"
-                android:layout_height="match_parent"
-                android:background="#393b3e" />
-              
-            <Button
-                android:id="@+id/btClose"
-                style="?android:attr/borderlessButtonStyle"
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="20dp"
+                android:background="?android:attr/listDivider" />
+
+            <!-- Detection -->
+            <TextView
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:padding="8dp"
-                android:text="@string/btClose_caption" />
+                android:text="@string/settings_detection_section"
+                android:textAppearance="@style/ValueLabel" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/settings_mode"
+                android:textAppearance="@style/CaptionLabel" />
+
+            <Spinner
+                android:id="@+id/spMode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btCapture"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/settings_sample_photo" />
+
+            <TextView
+                android:id="@+id/lblDetectStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:textAppearance="@style/CaptionLabel" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:baselineAligned="false"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_before"
+                        android:textAppearance="@style/CaptionLabel" />
+
+                    <ImageView
+                        android:id="@+id/imageBefore"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:adjustViewBounds="true"
+                        android:contentDescription="@string/settings_tap_to_sample"
+                        android:minHeight="120dp"
+                        android:scaleType="fitCenter" />
+                </LinearLayout>
+
+                <Space
+                    android:layout_width="12dp"
+                    android:layout_height="1dp" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_after"
+                        android:textAppearance="@style/CaptionLabel" />
+
+                    <ImageView
+                        android:id="@+id/imageAfter"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:adjustViewBounds="true"
+                        android:contentDescription="@string/settings_after"
+                        android:minHeight="120dp"
+                        android:scaleType="fitCenter" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/settings_sample_hint"
+                android:textAppearance="@style/CaptionLabel" />
+
+            <!-- Hue -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/settings_hue"
+                    android:textAppearance="@style/CaptionLabel" />
+
+                <TextView
+                    android:id="@+id/lblHueRangeValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="@style/CaptionLabel" />
+            </LinearLayout>
+
+            <com.vpcodebuilder.objectmeasurement.GradientColorView
+                android:id="@+id/colorRangeView"
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:layout_marginTop="6dp" />
+
+            <com.google.android.material.slider.Slider
+                android:id="@+id/sbHueLower"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:stepSize="1"
+                android:valueFrom="0"
+                android:valueTo="179" />
+
+            <com.google.android.material.slider.Slider
+                android:id="@+id/sbHueUpper"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:stepSize="1"
+                android:valueFrom="0"
+                android:valueTo="179" />
+
+            <!-- Saturation -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/settings_saturation"
+                    android:textAppearance="@style/CaptionLabel" />
+
+                <TextView
+                    android:id="@+id/lblSaturationRangeValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="@style/CaptionLabel" />
+            </LinearLayout>
+
+            <com.google.android.material.slider.RangeSlider
+                android:id="@+id/sbSaturation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:stepSize="1"
+                android:valueFrom="0"
+                android:valueTo="255" />
+
+            <!-- Brightness -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/settings_value"
+                    android:textAppearance="@style/CaptionLabel" />
+
+                <TextView
+                    android:id="@+id/lblValueRangeValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="@style/CaptionLabel" />
+            </LinearLayout>
+
+            <com.google.android.material.slider.RangeSlider
+                android:id="@+id/sbValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:stepSize="1"
+                android:valueFrom="0"
+                android:valueTo="255" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btResetColor"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/settings_reset_color" />
+
         </LinearLayout>
-          
-		<View
-			android:layout_width="match_parent"
-            android:layout_height="1dip"
-            android:background="#393b3e" />    
-	</LinearLayout>
+    </ScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/colorSurfaceVariant"
+        android:orientation="horizontal"
+        android:padding="12dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btClose"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/btClose_caption" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btSave"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:text="@string/btSave_caption" />
+    </LinearLayout>
+
 </LinearLayout>

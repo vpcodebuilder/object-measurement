@@ -1,33 +1,59 @@
-apply plugin: 'com.android.application'
+plugins {
+    id 'com.android.application'
+}
 
 android {
-    compileSdkVersion 27
+    namespace 'com.vpcodebuilder.objectmeasurement'
+    compileSdk 35
 
     defaultConfig {
         applicationId "com.vpcodebuilder.objectmeasurement"
-        minSdkVersion 17
-        targetSdkVersion 27
-        versionCode 1
-        versionName "1.0"
+        minSdk 24
+        targetSdk 35
+        versionCode 2
+        versionName "2.0"
+
+        // The OpenCV AAR ships native libraries for every ABI; trim the ones we
+        // do not need so the APK stays a reasonable size.
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+        }
     }
+
     buildTypes {
         release {
+            // Flip to true once you have verified the app on a device: the
+            // OpenCV keep-rules in proguard-rules.pro are already in place.
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    lint {
+        abortOnError false
     }
 }
 
 dependencies {
-    implementation fileTree(dir: 'libs', include: ['*.jar'])
-    implementation 'com.android.support:appcompat-v7:27.1.1'
-    implementation 'com.android.support.constraint:constraint-layout:1.1.3'
-    testImplementation 'junit:junit:4.12'
-    androidTestImplementation 'com.android.support.test:runner:1.0.2'
-    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.core:core:1.13.1'
+    implementation 'androidx.activity:activity:1.9.3'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.exifinterface:exifinterface:1.3.7'
+    implementation 'com.google.android.material:material:1.12.0'
 
-    implementation project(':openCVLibrary2411')
-    implementation files('libs/commons-net-1.4.0.jar')
-    implementation files('libs/ftp4j-1.7.2.jar')
-    implementation 'eu.geekplace.iesp:iesp-jar:0.0.1'
+    // OpenCV 4.x published on Maven Central: bundles the native libraries, so the
+    // long-dead "OpenCV Manager" app is no longer needed.
+    implementation 'org.opencv:opencv:4.12.0'
+
+    testImplementation 'junit:junit:4.13.2'
 }

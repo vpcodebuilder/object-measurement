@@ -1,267 +1,324 @@
 package com.vpcodebuilder.objectmeasurement;
 
-import java.io.File;
-
-import org.opencv.android.BaseLoaderCallback;
-import org.opencv.android.LoaderCallbackInterface;
-import org.opencv.android.OpenCVLoader;
-import org.opencv.core.Rect;
-import org.opencv.core.Size;
-
-import android.app.Activity;
-import android.app.AlertDialog;
-import android.app.ProgressDialog;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
-import android.net.Uri;
+import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.TextView;
 
-public class MeasurementActivity extends Activity {
-	private SharedPreferences settings;
-	private MenuItem mnuProcess;
-	private MenuItem mnuSave;
-	private MeasurementGraphicView graphicMeasurement;
-	private MeasurementDetector processor;
-	private Uri imageUri;
-	private SignMeasurement signMeasurement;
-	private int itemId;
-	private int seqNo;
-	private boolean isUpdateMode;
-	private ProgressDialog progressDialog;
-	private boolean isProcessor = false;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatActivity;
 
-	@Override
-	protected void onCreate(Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
+import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.progressindicator.CircularProgressIndicator;
+import com.vpcodebuilder.objectmeasurement.detect.DetectorConfig;
+import com.vpcodebuilder.objectmeasurement.detect.LengthUnit;
+import com.vpcodebuilder.objectmeasurement.detect.MarkerDetector;
+import com.vpcodebuilder.objectmeasurement.detect.MeasuredSize;
+import com.vpcodebuilder.objectmeasurement.detect.ObjectSnapper;
+import com.vpcodebuilder.objectmeasurement.detect.SignMeasurement;
 
-		setContentView(R.layout.activity_measurement);
-		settings = getSharedPreferences(SettingActivity.SETTING_PREFERENCE, 0);
-		graphicMeasurement = (MeasurementGraphicView)findViewById(R.id.graphicMeasurement);
+import java.io.File;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-		Bundle bundle = this.getIntent().getExtras();
-		imageUri = Uri.parse(bundle.getString(MainActivity.EXTRA_IMAGE_PATH));
-		signMeasurement = new SignMeasurement(new Rect(
-				bundle.getInt(CaptureDetectActivity.EXTRA_SIGN_POS_X),
-				bundle.getInt(CaptureDetectActivity.EXTRA_SIGN_POS_Y),
-				bundle.getInt(CaptureDetectActivity.EXTRA_SIGN_WIDTH),
-				bundle.getInt(CaptureDetectActivity.EXTRA_SIGN_HEIGHT)),
-				bundle.getDouble(CaptureDetectActivity.EXTRA_RULER_WIDTH),
-				bundle.getDouble(CaptureDetectActivity.EXTRA_RULER_HEIGHT)
-		);
-		itemId = bundle.getInt(MainActivity.EXTRA_ITEM_ID);
-		seqNo = bundle.getInt(MainActivity.EXTRA_SEQ_NO);
-		isUpdateMode = bundle.getBoolean(MainActivity.EXTRA_IS_UPDATE_MODE);
+/**
+ * Place a box around the object and read off its size.
+ *
+ * <p>The old screen had an explicit "Process" action that spun up a thread, threw
+ * a {@code ProgressDialog} over the UI and multiplied the box's pixel size by a
+ * single mm/px scalar. With the measurement reduced to a four-point perspective
+ * transform, that whole round trip costs microseconds — so the size is now shown
+ * live as the box is dragged, and there is nothing to wait for. The heavy work
+ * that remains (decoding the photo, running detection when the caller did not
+ * supply a marker, auto-fit) runs off the main thread with a small inline
+ * spinner instead of a modal dialog.</p>
+ */
+public class MeasurementActivity extends AppCompatActivity {
 
-		if (savedInstanceState == null) {
-			try {
-				Bitmap bmp = BitmapHelper.getBitmapFromPath(imageUri.getPath(), MainActivity.FRAME_REQUEST_WIDTH);
+    public static final String EXTRA_IMAGE_PATH = "imagePath";
+    public static final String EXTRA_SOURCE_WIDTH = "sourceWidth";
+    public static final String EXTRA_MARKER = "marker";
+    public static final String EXTRA_ITEM_ID = "itemId";
+    public static final String EXTRA_SEQ_NO = "seqNo";
 
-				if (bmp.getHeight() > bmp.getWidth()) {
-					//bmp = BitmapHelper.rotateBitmap(bmp, 90);
-				}
+    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final Handler main = new Handler(Looper.getMainLooper());
 
-				graphicMeasurement.setBackgroundImage(bmp, signMeasurement);
-			} catch (Exception ex) {
-				this.showErrorDialog(ex);
-			}
-		} else {
-			isProcessor = savedInstanceState.getBoolean("isProcessor");
-			graphicMeasurement.getInstanceState(savedInstanceState);
+    private MeasurementGraphicView graphic;
+    private TextView sizeLabel;
+    private TextView noteLabel;
+    private CircularProgressIndicator progress;
 
-			if (isProcessor) this.process();
-		}
-	}
+    private DetectorConfig config;
+    private LengthUnit unit = LengthUnit.MM;
 
-	@Override
-	public boolean onCreateOptionsMenu(Menu menu) {
-		getMenuInflater().inflate(R.menu.measurement_actions, menu);
-		mnuProcess = (MenuItem)menu.findItem(R.id.action_process);
-		mnuSave = (MenuItem)menu.findItem(R.id.action_save);
+    private String imagePath;
+    private int sourceWidth;
+    private SignMeasurement marker;
+    private Bitmap image;
+    private int itemId;
+    private int seqNo;
 
-		if (!graphicMeasurement.hasLockMeasurement()) {
-			mnuProcess.setVisible(true);
-			mnuSave.setVisible(false);
-		} else {
-			mnuProcess.setVisible(false);
-			mnuSave.setVisible(true);
-		}
+    @Override
+    protected void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_measurement);
 
-		return super.onCreateOptionsMenu(menu);
-	}
+        MaterialToolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        toolbar.setNavigationOnClickListener(v -> confirmDiscard());
 
-	@Override
-	public boolean onOptionsItemSelected(MenuItem item) {
-		if (item.getItemId() == R.id.action_process) {
-			this.process();
-			return true;
-		}
+        graphic = findViewById(R.id.graphicMeasurement);
+        sizeLabel = findViewById(R.id.lblSize);
+        noteLabel = findViewById(R.id.lblNote);
+        progress = findViewById(R.id.progress);
 
-		if (item.getItemId() == R.id.action_save) {
-			this.save();
-			return true;
-		}
+        SharedPreferences prefs = getSharedPreferences(DetectorConfig.PREFS, MODE_PRIVATE);
+        config = DetectorConfig.from(prefs);
+        unit = LengthUnit.byName(prefs.getString(DetectorConfig.KEY_UNIT, null), LengthUnit.MM);
+        graphic.setUnit(unit);
 
-		if (item.getItemId() == R.id.action_cancel) {
-			this.cancel();
-			return true;
-		}
+        Bundle extras = getIntent().getExtras();
+        if (extras == null) {
+            finish();
+            return;
+        }
+        imagePath = extras.getString(EXTRA_IMAGE_PATH);
+        if (imagePath == null) {
+            DialogHelper.error(this, getString(R.string.error_load_image));
+            finish();
+            return;
+        }
+        sourceWidth = extras.getInt(EXTRA_SOURCE_WIDTH, 0);
+        marker = extras.getParcelable(EXTRA_MARKER);
+        itemId = extras.getInt(EXTRA_ITEM_ID, 1);
+        seqNo = extras.getInt(EXTRA_SEQ_NO, 1);
 
-		return super.onOptionsItemSelected(item);
-	}
+        graphic.setOnMeasureListener(this::showSize);
 
-	private void process() {
-		isProcessor = true;
+        final Bundle restore = savedInstanceState;
+        loadImage(() -> {
+            if (restore != null) graphic.restoreState(restore);
+        });
+    }
 
-		if (progressDialog != null) {
-			progressDialog.dismiss();
-			progressDialog = null;
-		}
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        worker.shutdownNow();
+    }
 
-		progressDialog = ProgressDialog.show(MeasurementActivity.this, "Please wait", "Processing...", true);
-		final Handler uiHandler = new Handler();
+    @Override
+    protected void onSaveInstanceState(@Nullable Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (outState != null) graphic.saveState(outState);
+    }
 
-		new Thread(new Runnable() {
-			@Override
-			public void run() {
-			processor = new MeasurementDetector(graphicMeasurement.getCropImage(),
-						new Size(settings.getFloat(SettingActivity.SETTING_REAL_SIGN_WIDTH, 0),
-								settings.getFloat(SettingActivity.SETTING_REAL_SIGN_HEIGHT, 0)));
+    // ------------------------------------------------------------------ loading
 
-			try {
-				processor.process(graphicMeasurement.getSignMeasurement());
-			} catch (final Exception ex) {
-				uiHandler.post(new Runnable() {
-					@Override
-					public void run() {
-						progressDialog.dismiss();
-						showErrorDialog(ex);
-					}
-				});
+    private void loadImage(Runnable afterLoad) {
+        setBusy(true);
+        worker.execute(() -> {
+            Bitmap decoded = null;
+            SignMeasurement resolved = marker;
+            Exception failure = null;
 
-				return;
-			}
+            try {
+                decoded = BitmapHelper.decode(this,
+                        android.net.Uri.fromFile(new File(imagePath)), App.WORK_IMAGE_WIDTH);
 
-			uiHandler.post(new Runnable() {
-				@Override
-				public void run() {
-				try {
-					progressDialog.dismiss();
+                if (resolved != null && sourceWidth > 0 && decoded.getWidth() != sourceWidth) {
+                    // Corners were found in the capture frame; move them into the
+                    // coordinate space of the bitmap we actually decoded.
+                    resolved = resolved.scaled(decoded.getWidth() / (double) sourceWidth);
+                }
+                if (resolved == null) {
+                    resolved = MarkerDetector.detect(decoded, config);
+                } else if (!resolved.hasMarkerSize() && config.hasMarkerSize()) {
+                    resolved = resolved.withMarkerSize(config.markerWidthMm, config.markerHeightMm);
+                }
+            } catch (Exception ex) {
+                failure = ex;
+            }
 
-					Size objectMilimeterSize = processor.getObjectMilimeterSize();
-					android.graphics.Rect boundary = SignMeasurement.ConvertToGraphicRectType(
-							processor.getSignMeasurement().getBoundary());
+            final Bitmap finalBitmap = decoded;
+            final SignMeasurement finalMarker = resolved;
+            final Exception finalFailure = failure;
 
-					graphicMeasurement.setObjectMeasure(
-							objectMilimeterSize.width,
-							objectMilimeterSize.height,
-							boundary);
-					mnuProcess.setVisible(false);
-					mnuSave.setVisible(true);
-					isProcessor = false;
-				} catch (final Exception ex) {	}
-				}
-			});
-			}
-		}).start();
-	}
+            main.post(() -> {
+                setBusy(false);
+                if (finalFailure != null || finalBitmap == null) {
+                    DialogHelper.error(this, R.string.error_load_image, finalFailure);
+                    return;
+                }
+                image = finalBitmap;
+                marker = finalMarker;
+                graphic.setImage(image, marker);
+                updateNote();
+                invalidateOptionsMenu();
+                if (afterLoad != null) afterLoad.run();
+            });
+        });
+    }
 
-	private void save() {
-		DBObjectMeasurement oDBObjectMeasurement = new DBObjectMeasurement();
+    private void setBusy(boolean busy) {
+        progress.setVisibility(busy ? android.view.View.VISIBLE : android.view.View.GONE);
+    }
 
-		try {
-			oDBObjectMeasurement.setItemId(this.itemId);
-			oDBObjectMeasurement.setSeqNo(this.seqNo);
-			oDBObjectMeasurement.setObjectMeterWidth(graphicMeasurement.getObjectMeterWidth());
-			oDBObjectMeasurement.setObjectMeterHeight(graphicMeasurement.getObjectMeterHeight());
-			oDBObjectMeasurement.setImageData(graphicMeasurement.getImageResult());
+    // -------------------------------------------------------------------- menu
 
-			DBManager dbManager = new DBManager(MeasurementActivity.this);
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.measurement_actions, menu);
+        return super.onCreateOptionsMenu(menu);
+    }
 
-			if (!isUpdateMode) {
-				DBObjectMeasurement.insert(dbManager, oDBObjectMeasurement);
-			} else {
-				DBObjectMeasurement.update(dbManager, oDBObjectMeasurement);
-			}
-		} catch (Exception ex) {
-			this.showErrorDialog(ex);
-			return;
-		}
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        boolean measurable = marker != null && marker.hasMarkerSize();
+        MenuItem save = menu.findItem(R.id.action_save);
+        if (save != null) save.setEnabled(measurable);
+        MenuItem autofit = menu.findItem(R.id.action_autofit);
+        if (autofit != null) autofit.setEnabled(image != null);
+        return super.onPrepareOptionsMenu(menu);
+    }
 
-		this.deleteCameraBufferFile();
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        int id = item.getItemId();
+        if (id == R.id.action_autofit) {
+            autoFit();
+            return true;
+        }
+        if (id == R.id.action_save) {
+            save();
+            return true;
+        }
+        if (id == R.id.action_reset) {
+            resetBox();
+            return true;
+        }
+        if (id == R.id.action_cancel) {
+            confirmDiscard();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
 
-		Intent returnIntent = new Intent(this, MainActivity.class);
-		setResult(RESULT_OK, returnIntent);
-		finish();
-	}
+    // ------------------------------------------------------------------ actions
 
-	private void cancel() {
-		// ถามการยืนยันการยกเลิก
-		AlertDialog.Builder adlg = new AlertDialog.Builder(this);
-		String message = "Are you sure you want to cancel?";
+    /** Shrink the selection onto the object inside it. */
+    private void autoFit() {
+        if (image == null) return;
+        final Rect current = graphic.getCropInImage();
+        setBusy(true);
+        worker.execute(() -> {
+            final Rect snapped = ObjectSnapper.snap(image, current);
+            main.post(() -> {
+                setBusy(false);
+                graphic.setCropInImage(snapped);
+            });
+        });
+    }
 
-		if (graphicMeasurement.hasLockMeasurement())
-			message = "Are you sure you want back to original?";
+    private void resetBox() {
+        if (image == null) return;
+        int w = image.getWidth();
+        int h = image.getHeight();
+        graphic.setCropInImage(new Rect(
+                (int) (w * 0.275), (int) (h * 0.325),
+                (int) (w * 0.725), (int) (h * 0.675)));
+    }
 
-		adlg.setTitle("Confirm cancel");
-		adlg.setMessage(message);
-		adlg.setNegativeButton("No", null);
-		adlg.setPositiveButton("Yes", new AlertDialog.OnClickListener() {
-			public void onClick(DialogInterface dialog, int arg1) {
-				if (graphicMeasurement.hasLockMeasurement()) {
-					graphicMeasurement.undoProcess();
-					mnuProcess.setVisible(true);
-					mnuSave.setVisible(false);
-				} else {
-					deleteCameraBufferFile();
-					finish();
-				}
-			}
-		});
+    private void save() {
+        MeasuredSize size = graphic.getMeasured();
+        if (size.isEmpty()) {
+            DialogHelper.alert(this, R.string.dialog_error,
+                    getString(marker == null
+                            ? R.string.measure_no_marker
+                            : R.string.measure_no_marker_size));
+            return;
+        }
 
-		adlg.show();
-	}
+        final DBObjectMeasurement row = new DBObjectMeasurement();
+        row.setItemId(itemId);
+        row.setSeqNo(seqNo);
+        row.setObjectWidthMm(size.widthMm);
+        row.setObjectHeightMm(size.heightMm);
+        row.setConfidence(marker != null ? marker.confidence() : 0f);
+        row.setPerspectiveCorrected(size.perspectiveCorrected);
+        // Rendering the annotated export and JPEG-encoding it for the blob is
+        // tens of milliseconds of bitmap work; it does not belong on the main
+        // thread, so the row is completed and written on the worker.
+        row.setImageData(graphic.renderResult());
 
-	private void deleteCameraBufferFile() {
-		File cameraBufferFile = new File(imageUri.getPath());
-		cameraBufferFile.delete();
-	}
+        setBusy(true);
+        worker.execute(() -> {
+            Exception failure = null;
+            try {
+                DBObjectMeasurement.save(DBManager.get(this), row);
+            } catch (Exception ex) {
+                failure = ex;
+            }
+            final Exception finalFailure = failure;
+            main.post(() -> {
+                setBusy(false);
+                if (finalFailure != null) {
+                    DialogHelper.error(this, finalFailure.toString());
+                    return;
+                }
+                Storage.deleteQuietly(new File(imagePath));
+                setResult(RESULT_OK, new Intent());
+                finish();
+            });
+        });
+    }
 
-	private void showErrorDialog(Exception ex) {
-		AlertDialog.Builder adlg = new AlertDialog.Builder(this);
-		adlg.setTitle("Error");
-		adlg.setMessage("Operation error\n" + ex.toString());
-		adlg.show();
-	}
+    private void confirmDiscard() {
+        DialogHelper.confirm(this,
+                R.string.confirm_discard_title,
+                R.string.confirm_discard_body,
+                R.string.confirm_discard_yes,
+                () -> {
+                    Storage.deleteQuietly(new File(imagePath));
+                    finish();
+                });
+    }
 
-	@Override
-	public void onResume()
-	{
-		super.onResume();
-		OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_2_4_9, this, mLoaderCallback);
-	}
+    // ------------------------------------------------------------------ display
 
-	@Override
-	public void onSaveInstanceState(Bundle savedInstanceState) {
-		super.onSaveInstanceState(savedInstanceState);
-		graphicMeasurement.saveInstanceState(savedInstanceState);
-		savedInstanceState.putBoolean("isProcessor", isProcessor);
-	}
+    private void showSize(MeasuredSize size) {
+        if (size == null || size.isEmpty()) {
+            sizeLabel.setText(R.string.measure_prompt);
+        } else {
+            sizeLabel.setText(size.format(unit));
+        }
+    }
 
-	private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
-		@Override
-		public void onManagerConnected(int status) {
-			switch (status) {
-				case LoaderCallbackInterface.SUCCESS:
-					break;
-				default:
-					super.onManagerConnected(status);
-					break;
-			}
-		}
-	};
+    private void updateNote() {
+        if (marker == null) {
+            noteLabel.setText(R.string.measure_no_marker);
+            return;
+        }
+        if (!marker.hasMarkerSize()) {
+            noteLabel.setText(R.string.measure_no_marker_size);
+            return;
+        }
+
+        StringBuilder note = new StringBuilder();
+        note.append(getString(R.string.confidence_format,
+                Math.round(marker.confidence() * 100)));
+        // A strongly trapezoidal marker means a steep viewing angle: the
+        // homography still corrects it, but small corner errors are amplified.
+        if (marker.perspectiveSkew() > 1.25) {
+            note.append(" · ").append(getString(R.string.measure_skew_warning));
+        }
+        noteLabel.setText(note.toString());
+    }
 }

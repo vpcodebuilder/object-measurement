@@ -1,17 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<menu xmlns:android="http://schemas.android.com/apk/res/android" >
-    
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
     <item
-        android:id="@+id/action_process"
-        android:title="@string/action_process"
-        android:showAsAction="ifRoom|withText" />
+        android:id="@+id/action_autofit"
+        android:title="@string/action_autofit"
+        app:showAsAction="ifRoom|withText" />
     <item
         android:id="@+id/action_save"
         android:title="@string/action_save"
-        android:showAsAction="ifRoom|withText" />
+        app:showAsAction="ifRoom|withText" />
+    <item
+        android:id="@+id/action_reset"
+        android:title="@string/action_reset"
+        app:showAsAction="never" />
     <item
         android:id="@+id/action_cancel"
         android:title="@string/action_cancel"
-        android:showAsAction="ifRoom|withText" />
+        app:showAsAction="never" />
 
 </menu>

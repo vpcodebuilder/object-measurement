@@ -1,92 +1,130 @@
 package com.vpcodebuilder.objectmeasurement;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.net.Uri;
 
-public class BitmapHelper {
-	public static Bitmap getBitmapFromPath(String path) throws Exception {
-		File file = new File(path);
-		Bitmap bufferedImage;
+import androidx.exifinterface.media.ExifInterface;
 
-		try {
-			BitmapFactory.Options options = new BitmapFactory.Options();
-			options.inPreferredConfig = Bitmap.Config.ARGB_8888;
-			FileInputStream fileInputStream;
-			fileInputStream = new FileInputStream(file);
-			bufferedImage = BitmapFactory.decodeStream(fileInputStream, null, options);
-			fileInputStream.close();
-		} catch (Exception ex) {
-			throw ex;
-		}
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 
-		return bufferedImage;
-	}
+/** Bitmap loading that downsamples for memory and honours EXIF orientation. */
+public final class BitmapHelper {
 
-	public static Bitmap getBitmapFromPath(String path, int requestWidth) throws Exception  {
-		/* The input stream could be reset instead of closed and reopened if it were possible
-           to reliably wrap the input stream on a buffered stream, but it's not possible because
-           decodeStream() places an upper read limit of 1024 bytes for a reset to be made (it calls
-           mark(1024) on the stream). */
+    private BitmapHelper() {
+    }
 
-		File file = new File(path);
-		FileInputStream fileInputStream;
-		BitmapFactory.Options sizeOptions = new BitmapFactory.Options();
-		sizeOptions.inJustDecodeBounds = true;
+    /**
+     * Decode from any URI — {@code content://} included.
+     *
+     * <p>The old gallery path resolved {@code MediaStore.Images.Media.DATA} to a
+     * filesystem path and opened it directly. That column has been unreadable
+     * since Android 10, so importing a photo threw or produced a null bitmap on
+     * every modern device. Reading through the content resolver works for
+     * documents, cloud providers and the photo picker alike.</p>
+     */
+    public static Bitmap decode(Context context, Uri uri, int requestedWidth) throws IOException {
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        try (InputStream in = open(context, uri)) {
+            BitmapFactory.decodeStream(in, null, bounds);
+        }
+        if (bounds.outWidth <= 0) {
+            throw new IOException("Not a readable image");
+        }
 
-		try {
-			fileInputStream = new FileInputStream(file);
-			BitmapFactory.decodeStream(fileInputStream, null, sizeOptions);
-			fileInputStream.close();
-		} catch (Exception ex) {
-			throw ex;
-		}
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+        options.inSampleSize = sampleSize(bounds.outWidth, requestedWidth);
 
-		int width = sizeOptions.outWidth;
-		int sampleSize = 1;
+        Bitmap bitmap;
+        try (InputStream in = open(context, uri)) {
+            bitmap = BitmapFactory.decodeStream(in, null, options);
+        }
+        if (bitmap == null) {
+            throw new IOException("Could not decode the image");
+        }
 
-		while (width > requestWidth) {
-			width /= 2.0;
+        int rotation;
+        try (InputStream in = open(context, uri)) {
+            rotation = exifRotation(in);
+        } catch (IOException ignored) {
+            rotation = 0;
+        }
+        return rotate(bitmap, rotation);
+    }
 
-			if (width < requestWidth) break;
+    public static Bitmap decode(File file, int requestedWidth) throws IOException {
+        return decode(null, Uri.fromFile(file), requestedWidth);
+    }
 
-			sampleSize *= 2;
-		}
+    private static InputStream open(Context context, Uri uri) throws IOException {
+        if (context != null && !"file".equals(uri.getScheme())) {
+            InputStream in = context.getContentResolver().openInputStream(uri);
+            if (in == null) throw new IOException("Could not open " + uri);
+            return in;
+        }
+        String path = uri.getPath();
+        if (path == null) throw new IOException("Malformed URI " + uri);
+        return new FileInputStream(path);
+    }
 
-		BitmapFactory.Options finalBitmapOptions = new BitmapFactory.Options();
-		Bitmap bufferedImage;
+    /**
+     * Largest power-of-two subsample that still leaves at least
+     * {@code requestedWidth} pixels across.
+     *
+     * <p>The previous loop halved the width and compared it against the request
+     * inside the same iteration, so it undershot by a factor of two for some
+     * inputs and returned images below the requested size.</p>
+     */
+    static int sampleSize(int sourceWidth, int requestedWidth) {
+        int sample = 1;
+        if (requestedWidth > 0 && sourceWidth > requestedWidth) {
+            int half = sourceWidth / 2;
+            while ((half / sample) >= requestedWidth) {
+                sample *= 2;
+            }
+        }
+        return sample;
+    }
 
-		finalBitmapOptions.inPreferredConfig = Bitmap.Config.ARGB_8888;
-		finalBitmapOptions.inSampleSize = sampleSize;
+    private static int exifRotation(InputStream in) throws IOException {
+        ExifInterface exif = new ExifInterface(in);
+        switch (exif.getAttributeInt(ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL)) {
+            case ExifInterface.ORIENTATION_ROTATE_90:
+                return 90;
+            case ExifInterface.ORIENTATION_ROTATE_180:
+                return 180;
+            case ExifInterface.ORIENTATION_ROTATE_270:
+                return 270;
+            default:
+                return 0;
+        }
+    }
 
-		try {
-			fileInputStream = new FileInputStream(file);
-			bufferedImage = BitmapFactory.decodeStream(fileInputStream, null, finalBitmapOptions);
-			fileInputStream.close();
-		} catch (Exception ex) {
-			throw ex;
-		}
+    public static Bitmap rotate(Bitmap source, int degrees) {
+        if (source == null || degrees % 360 == 0) return source;
+        Matrix matrix = new Matrix();
+        matrix.postRotate(degrees);
+        Bitmap rotated = Bitmap.createBitmap(source, 0, 0,
+                source.getWidth(), source.getHeight(), matrix, true);
+        if (rotated != source) source.recycle();
+        return rotated;
+    }
 
-		return bufferedImage;
-	}
-
-	public static Bitmap getScaledBitmap(Bitmap bmp, int reqWidth) {
-		double ratio = reqWidth / (double)bmp.getWidth();
-		int nWidth = (int)(bmp.getWidth() * ratio);
-		int nHeight = (int)(bmp.getHeight() * ratio);
-
-		return Bitmap.createScaledBitmap(bmp, nWidth, nHeight, true);
-	}
-
-	public static Bitmap rotateBitmap(Bitmap source, float angle)
-	{
-		Matrix matrix = new Matrix();
-		matrix.postRotate(angle);
-		return Bitmap.createBitmap(source, 0, 0, source.getWidth(), source.getHeight(), matrix, true);
-	}
+    /** Scale so the width becomes {@code requestedWidth}, preserving aspect. */
+    public static Bitmap scaleToWidth(Bitmap source, int requestedWidth) {
+        if (source == null || requestedWidth <= 0 || source.getWidth() == requestedWidth) {
+            return source;
+        }
+        double ratio = requestedWidth / (double) source.getWidth();
+        int height = Math.max(1, (int) Math.round(source.getHeight() * ratio));
+        return Bitmap.createScaledBitmap(source, requestedWidth, height, true);
+    }
 }

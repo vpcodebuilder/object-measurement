@@ -1,662 +1,635 @@
 package com.vpcodebuilder.objectmeasurement;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.util.Locale;
-
 import android.content.Context;
-import android.graphics.*;
-import android.graphics.Bitmap.Config;
-import android.graphics.Point;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.Rect;
+import android.graphics.RectF;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.util.AttributeSet;
+import android.util.TypedValue;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewTreeObserver;
 
-import org.opencv.core.*;
+import androidx.annotation.Nullable;
 
+import com.vpcodebuilder.objectmeasurement.detect.LengthUnit;
+import com.vpcodebuilder.objectmeasurement.detect.MeasuredSize;
+import com.vpcodebuilder.objectmeasurement.detect.SignMeasurement;
+
+import org.opencv.core.Point;
+
+/**
+ * The selection surface: a photo, the detected marker, and a draggable box the
+ * user places around the object.
+ *
+ * <p>Two structural changes over the original:</p>
+ * <ul>
+ *   <li>The selection is stored in <em>image</em> pixels, not view pixels. The old
+ *       version kept view coordinates and re-derived them against a remembered
+ *       layout rectangle on every rotation and state restore, which drifted a
+ *       little each time. Image coordinates are what the measurement needs
+ *       anyway, so the conversion now happens once, at draw and touch time.</li>
+ *   <li>{@code onDraw} no longer allocates. The previous implementation called
+ *       {@code Bitmap.createBitmap} twice per frame to punch out the bright
+ *       region, which made dragging stutter and churned the heap; a clip
+ *       rectangle does the same job for free.</li>
+ * </ul>
+ */
 public class MeasurementGraphicView extends View {
-	public enum SelectionMode {
-		None,
-		ReSize,
-		Move
-	}
-
-	private Point screenSize;
-	private Paint backgroundPaint;
-	private Paint cropRectanglePaint;
-	private Paint signRectanglePaint;
-	private Paint internalTrackerPaint;
-	private Paint externalTrackerPaint;
-	private Paint textPaint;
-
-	private double ratioTracker = 0.046875; // อัตราส่วน 640x480 ตัว Tracker เท่ากับ 30px = 30/640 = 0.046875
-	private int trackerSize;
-	private int handleNumber;
-	private SelectionMode selectionMode = SelectionMode.None;
-	private int currentLeft;
-	private int currentTop;
-	private int currentRight;
-	private int currentBottom;
-	private Point lastPoint;
-	private Bitmap backgroundImage = null;
-	private Bitmap backgroundImageScale = null;
-	private Rect backgroundRect;
-	private double objectMeterWidth;
-	private double objectMeterHeight;
-	private Rect signRect;
-	private double rulerWidth;
-	private double rulerHeight;
-	private boolean isLockMeasurement = false;
-	private boolean hasLoadStateComplete = false;
-
-	public MeasurementGraphicView(Context context) {
-		super(context);
-		this.initialize();
-	}
-
-	public MeasurementGraphicView(Context context, AttributeSet attrs) {
-		super(context, attrs);
-		this.initialize();
-	}
-
-	public void saveInstanceState(Bundle savedInstanceState) {
-		savedInstanceState.putInt("currentLeft", this.currentLeft);
-		savedInstanceState.putInt("currentTop", this.currentTop);
-		savedInstanceState.putInt("currentRight", this.currentRight);
-		savedInstanceState.putInt("currentBottom", this.currentBottom);
-		savedInstanceState.putParcelable("backgroundImage", this.backgroundImage);
-		savedInstanceState.putParcelable("backgroundRect", this.backgroundRect);
-		savedInstanceState.putDouble("objectMeterWidth", this.objectMeterWidth);
-		savedInstanceState.putDouble("objectMeterHeight", this.objectMeterHeight);
-		savedInstanceState.putParcelable("signRect", this.signRect);
-		savedInstanceState.putDouble("rulerWidth", this.rulerWidth);
-		savedInstanceState.putDouble("rulerHeight", this.rulerHeight);
-		savedInstanceState.putBoolean("isLockMeasurement", this.isLockMeasurement);
-	}
-
-	public void getInstanceState(Bundle savedInstanceState) {
-		this.currentLeft = savedInstanceState.getInt("currentLeft");
-		this.currentTop = savedInstanceState.getInt("currentTop");
-		this.currentRight = savedInstanceState.getInt("currentRight");
-		this.currentBottom = savedInstanceState.getInt("currentBottom");
-		this.backgroundImage = savedInstanceState.getParcelable("backgroundImage");
-		this.backgroundRect = savedInstanceState.getParcelable("backgroundRect");
-		this.objectMeterWidth = savedInstanceState.getDouble("objectMeterWidth");
-		this.objectMeterHeight = savedInstanceState.getDouble("objectMeterHeight");
-		this.signRect = savedInstanceState.getParcelable("signRect");
-		this.rulerWidth = savedInstanceState.getDouble("rulerWidth");
-		this.rulerHeight = savedInstanceState.getDouble("rulerHeight");
-		this.isLockMeasurement = savedInstanceState.getBoolean("isLockMeasurement");
-
-		if (this.isLockMeasurement) {
-			this.cropRectanglePaint.setColor(Color.rgb(255, 128, 0));
-		}
-
-		screenSize = DeviceHelper.getScreenResolution(this.getContext());
-
-		if (screenSize != null) {
-			this.trackerSize = (int)(Math.max(screenSize.x, screenSize.y) * ratioTracker);
-		}
-
-		this.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
-			@Override
-			public void onGlobalLayout() {
-			if (hasLoadStateComplete) return;
-
-			Rect backgroundRectOld = backgroundRect;
-
-			if (backgroundRectOld == null) return;
-
-			if (getWidth() < getHeight()) {
-				int imageHeight = (int) (backgroundImage.getHeight() * (getWidth() / (double) backgroundImage.getWidth()));
-				int top = (int) ((getHeight() / 2f) - (imageHeight / 2f));
-
-				backgroundRect = new Rect(0, top, getWidth(), top + imageHeight);
-			} else {
-				int imageWidth = (int) (backgroundImage.getWidth() * (getHeight() / (double) backgroundImage.getHeight()));
-				int left = (int) ((getWidth() / 2f) - (imageWidth / 2f));
-
-				backgroundRect = new Rect(left, 0, left + imageWidth, getHeight());
-			}
-
-			double ratioWidth = backgroundRect.width() / (double) backgroundRectOld.width();
-			double ratioHeight = backgroundRect.height() / (double) backgroundRectOld.height();
-
-			currentLeft = (int) (backgroundRect.left + ((currentLeft - backgroundRectOld.left) * ratioWidth));
-			currentTop = (int) (backgroundRect.top + ((currentTop - backgroundRectOld.top) * ratioHeight));
-			currentRight = (int) (backgroundRect.left + ((currentRight - backgroundRectOld.left) * ratioWidth));
-			currentBottom = (int) (backgroundRect.top + ((currentBottom - backgroundRectOld.top) * ratioHeight));
-
-			invalidate();
-			hasLoadStateComplete = true;
-			}
-		});
-	}
-
-	public boolean hasLockMeasurement() {
-		return this.isLockMeasurement;
-	}
-
-	public double getObjectMeterWidth() {
-		return this.objectMeterWidth;
-	}
-
-	public double getObjectMeterHeight() {
-		return this.objectMeterHeight;
-	}
-
-	public void undoProcess() {
-		if (this.isLockMeasurement) {
-			this.cropRectanglePaint.setColor(Color.WHITE);
-			this.objectMeterWidth = 0;
-			this.objectMeterHeight = 0;
-			this.isLockMeasurement = false;
-			this.invalidate();
-		}
-	}
-
-	private void initialize() {
-		this.backgroundPaint = new Paint();
-		this.backgroundPaint.setAlpha(80);
-
-		this.internalTrackerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-		this.internalTrackerPaint.setColor(Color.rgb(49, 182, 231));
-		this.internalTrackerPaint.setAlpha(180);
-
-		this.externalTrackerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-		this.externalTrackerPaint.setColor(Color.rgb(24, 101, 132));
-		this.externalTrackerPaint.setAlpha(180);
-
-		this.cropRectanglePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-		this.cropRectanglePaint.setStyle(Paint.Style.STROKE);
-		this.cropRectanglePaint.setColor(Color.WHITE);
-		this.cropRectanglePaint.setStrokeWidth(2);
-
-		this.signRectanglePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-		this.signRectanglePaint.setStyle(Paint.Style.STROKE);
-		this.signRectanglePaint.setColor(Color.RED);
-		this.signRectanglePaint.setStrokeWidth(2);
-
-		this.textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-		this.textPaint.setColor(Color.GREEN);
-		this.textPaint.setTypeface(Typeface.DEFAULT_BOLD);
-
-		screenSize = DeviceHelper.getScreenResolution(this.getContext());
-
-		if (screenSize != null) {
-			this.trackerSize = (int)(Math.max(screenSize.x, screenSize.y) * ratioTracker);
-		}
-	}
-
-	private void checkCropInitialize() {
-		if (currentLeft == 0 && currentTop == 0 && currentRight == 0 && currentBottom == 0) {
-			int cropWidth = 256;
-			int cropHeight = 128;
-
-			currentLeft = (int)((getWidth() / 2.0) - (cropWidth / 2.0));
-			currentTop = (int)((getHeight() / 2.0) - (cropHeight / 2.0));
-			currentRight = currentLeft + cropWidth;
-			currentBottom = currentTop + cropHeight;
-		}
-	}
-
-	private Rect getCropRectangle()
-	{
-		int left, top, right, buttom;
-
-		this.checkCropInitialize();
-
-		if (currentLeft <= currentRight)
-		{
-			left = currentLeft;
-			right = currentRight;
-		}
-		else
-		{
-			left = currentRight;
-			right = currentLeft;
-		}
-
-		if (currentTop <= currentBottom)
-		{
-			top = currentTop;
-			buttom = currentBottom;
-		}
-		else
-		{
-			top = currentBottom;
-			buttom = currentTop;
-		}
-
-		return new Rect(left, top, right, buttom);
-	}
-
-	private Rect getHandleRectangle(int handleNumber)
-	{
-		int x = currentLeft;
-		int y = currentTop;
-		int xCenter = (int)((currentRight + currentLeft) / 2.0);
-		int yCenter = (int)((currentBottom + currentTop) / 2.0);
-
-		switch (handleNumber)
-		{
-			case 1:
-				x = currentLeft;
-				y = currentTop;
-				break;
-			case 2:
-				x = xCenter;
-				y = currentTop;
-				break;
-			case 3:
-				x = currentRight;
-				y = currentTop;
-				break;
-			case 4:
-				x = currentRight;
-				y = yCenter;
-				break;
-			case 5:
-				x = currentRight;
-				y = currentBottom;
-				break;
-			case 6:
-				x = xCenter;
-				y = currentBottom;
-				break;
-			case 7:
-				x = currentLeft;
-				y = currentBottom;
-				break;
-			case 8:
-				x = currentLeft;
-				y = yCenter;
-				break;
-		}
-
-		Point point = new Point(x, y);
-		double left = point.x - this.trackerSize / 2.0;
-		double top = point.y - this.trackerSize / 2.0;
-
-		return new Rect((int)left, (int)top, (int)(left + this.trackerSize) - 1, (int)(top + this.trackerSize) - 1);
-	}
-
-	private Rect getOriginalCropRect() {
-		Rect cropRect = this.getCropRectangle();
-
-		double ratioWidth = this.backgroundImage.getWidth() / (double)this.backgroundRect.width();
-		double ratioHeight = this.backgroundImage.getHeight() / (double)this.backgroundRect.height();
-		int left = (int)((cropRect.left - backgroundRect.left) * ratioWidth);
-		int top = (int)((cropRect.top - backgroundRect.top) * ratioHeight);
-		int right = (int)((cropRect.right - backgroundRect.left) * ratioWidth);
-		int bottom = (int)((cropRect.bottom - backgroundRect.top) * ratioHeight);
-
-		if (left < 0) left = 0;
-		if (top < 0) top = 0;
-		if (right >= this.backgroundImage.getWidth()) right = this.backgroundImage.getWidth() - 1;
-		if (bottom >= this.backgroundImage.getHeight()) bottom = this.backgroundImage.getHeight() - 1;
-
-		return new Rect(left, top, right, bottom);
-	}
-
-	public Bitmap getCropImage() {
-		Rect originalCropRect = this.getOriginalCropRect();
-		return Bitmap.createBitmap(this.backgroundImage,
-				originalCropRect.left,
-				originalCropRect.top,
-				originalCropRect.width(),
-				originalCropRect.height());
-	}
-
-	public SignMeasurement getSignMeasurement() {
-		if (this.signRect == null) return null;
-
-		return new SignMeasurement(
-				new org.opencv.core.Rect(this.signRect.left, this.signRect.top, this.signRect.width(), this.signRect.height()),
-				this.rulerWidth, this.rulerHeight);
-	}
-
-	public void setBackgroundImage(Bitmap bmp, SignMeasurement signMeasurement) {
-		this.backgroundImage = bmp;
-		this.signRect = SignMeasurement.ConvertToGraphicRectType(signMeasurement.getBoundary());
-		this.rulerWidth = signMeasurement.getRulerWidth();
-		this.rulerHeight = signMeasurement.getRulerHeight();
-		this.invalidate();
-	}
-
-	public boolean isSetBackgroundComplete() {
-		return this.backgroundImage != null;
-	}
-
-	public void setObjectMeasure(double objectMilimeterWidth, double objectMilimeterHeight, Rect signRectangle) {
-		this.cropRectanglePaint.setColor(Color.rgb(255, 128, 0));
-		this.objectMeterWidth = objectMilimeterWidth / 1000.0;
-		this.objectMeterHeight = objectMilimeterHeight / 1000.0;
-		this.isLockMeasurement = true;
-		this.invalidate();
-	}
-
-	private int hitTest(Point position) {
-		for (int i = 1; i <= 8; i++)
-		{
-			if (this.getHandleRectangle(i).contains(position.x, position.y)) {
-				return i;
-			}
-		}
-
-		return -1;
-	}
-
-	private void moveHandleTo(Point position, int handleNumber)
-	{
-		switch (handleNumber)
-		{
-			case 1:
-				currentLeft = position.x;
-				currentTop = position.y;
-				break;
-			case 2:
-				currentTop = position.y;
-				break;
-			case 3:
-				currentRight = position.x;
-				currentTop = position.y;
-				break;
-			case 4:
-				currentRight = position.x;
-				break;
-			case 5:
-				currentRight = position.x;
-				currentBottom = position.y;
-				break;
-			case 6:
-				currentBottom = position.y;
-				break;
-			case 7:
-				currentLeft = position.x;
-				currentBottom = position.y;
-				break;
-			case 8:
-				currentLeft = position.x;
-				break;
-		}
-
-		if (currentLeft <= this.backgroundRect.left) currentLeft = this.backgroundRect.left;
-		if (currentTop <= this.backgroundRect.top) currentTop = this.backgroundRect.top;
-		if (currentRight >= this.backgroundRect.right) currentRight = this.backgroundRect.right;
-		if (currentBottom >= this.backgroundRect.bottom) currentBottom = this.backgroundRect.bottom;
-
-		this.invalidate();
-	}
-
-	private void move(int deltaX, int deltaY) {
-		if (currentLeft + deltaX < this.backgroundRect.left) return;
-		if (currentTop + deltaY < this.backgroundRect.top) return;
-		if (currentRight + deltaX >= this.backgroundRect.right) return;
-		if (currentBottom + deltaY >= this.backgroundRect.bottom) return;
-
-		currentLeft += deltaX;
-		currentTop += deltaY;
-		currentRight += deltaX;
-		currentBottom += deltaY;
-
-		this.invalidate();
-	}
-
-	private void normalize()
-	{
-		if (currentLeft > currentRight)
-		{
-			int tmp = currentLeft;
-			currentLeft = currentRight;
-			currentRight = tmp;
-		}
-
-		if (currentTop > currentBottom)
-		{
-			int tmp = currentTop;
-			currentTop = currentBottom;
-			currentBottom = tmp;
-		}
-	}
-
-	private void drawBackground(Canvas canvas, Rect cropRect) {
-		if (this.backgroundImage != null) {
-			int cropX;
-			int cropY;
-
-			if (canvas.getWidth() < canvas.getHeight()) {
-				int imageHeight = (int)(backgroundImage.getHeight() * (this.getWidth() / (float)backgroundImage.getWidth()));
-				int top = (int)((this.getHeight() / 2f) - (imageHeight / 2f));
-
-				this.backgroundRect = new Rect(0, top, this.getWidth(), top + imageHeight);
-				cropX = cropRect.left;
-				cropY = cropRect.top - this.backgroundRect.top;
-			} else {
-				int imageWidth = (int)(backgroundImage.getWidth() * (this.getHeight() / (float)backgroundImage.getHeight()));
-				int left = (int)((this.getWidth() / 2f) - (imageWidth / 2f));
-
-				this.backgroundRect = new Rect(left, 0, left + imageWidth, this.getHeight());
-				cropX = cropRect.left - this.backgroundRect.left;
-				cropY = cropRect.top;
-			}
-
-			canvas.drawBitmap(this.backgroundImage, null, this.backgroundRect, backgroundPaint);
-
-			if (this.backgroundImageScale == null) {
-				this.backgroundImageScale = Bitmap.createScaledBitmap(this.backgroundImage, backgroundRect.width(), backgroundRect.height(), true);
-			}
-
-			if (cropRect.width() > 0 && cropRect.height() > 0) {
-				canvas.drawBitmap(
-						Bitmap.createBitmap(this.backgroundImageScale, cropX, cropY, cropRect.width(), cropRect.height()),
-						cropRect.left,
-						cropRect.top,
-						null);
-			}
-		}
-	}
-
-	private void drawTracker(Canvas canvas, Rect rectangle) {
-		if (this.trackerSize <= 0) return;
-
-		float cx = rectangle.left + (rectangle.width() / 2f);
-		float cy = rectangle.top + (rectangle.height() / 2f);
-		float radius =  this.trackerSize / 2f;
-
-		canvas.drawCircle(cx, cy, radius, externalTrackerPaint);
-		canvas.drawCircle(cx, cy, radius * 0.35f, internalTrackerPaint);
-	}
-
-	private void drawSign(Canvas canvas, Rect rectangle) {
-		if (this.signRect != null) {
-			Rect signBoundingRect = new Rect(this.signRect);
-
-			double ratioWidth = this.backgroundRect.width() / (double)this.backgroundImage.getWidth();
-			double ratioHeight = this.backgroundRect.height() / (double)this.backgroundImage.getHeight();
-
-			signBoundingRect.left = (int)(backgroundRect.left + (signBoundingRect.left * ratioWidth));
-			signBoundingRect.top = (int)(backgroundRect.top + (signBoundingRect.top * ratioHeight));
-			signBoundingRect.right = (int)(backgroundRect.left + (signBoundingRect.right * ratioWidth));
-			signBoundingRect.bottom = (int)(backgroundRect.top + (signBoundingRect.bottom * ratioHeight));
-
-			canvas.drawRect(signBoundingRect, this.signRectanglePaint);
-		}
-	}
-
-	private void drawObjectMeasure(Canvas canvas, Rect cropRectangle, boolean isScale) {
-		if (this.signRect != null) {
-			Rect signBoundingRect = new Rect(this.signRect);
-
-			if (isScale) {
-				double ratioWidth = this.backgroundRect.width() / (double)this.backgroundImage.getWidth();
-				double ratioHeight = this.backgroundRect.height() / (double)this.backgroundImage.getHeight();
-
-				signBoundingRect.left = (int)(backgroundRect.left + (signBoundingRect.left * ratioWidth));
-				signBoundingRect.top = (int)(backgroundRect.top + (signBoundingRect.top * ratioHeight));
-				signBoundingRect.right = (int)(backgroundRect.left + (signBoundingRect.right * ratioWidth));
-				signBoundingRect.bottom = (int)(backgroundRect.top + (signBoundingRect.bottom * ratioHeight));
-			}
-
-			canvas.drawRect(signBoundingRect, this.signRectanglePaint);
-		}
-
-		if (isScale) {
-			this.textPaint.setTextSize(16);
-		} else {
-			this.textPaint.setTextSize(24);
-		}
-
-		String textObjectMeterWidth = String.format(Locale.ENGLISH, "%.2f m.", this.objectMeterWidth);
-		String textObjectMeterHeight = String.format(Locale.ENGLISH, "%.2f m.", this.objectMeterHeight);
-		Rect textBound = new Rect();
-
-		this.textPaint.getTextBounds(textObjectMeterWidth, 0, textObjectMeterWidth.length(), textBound);
-
-		int textTop = cropRectangle.top - textBound.height();
-
-		if (isScale? (textTop < backgroundRect.top) : (textTop < 0)) textTop = (int)(cropRectangle.top + (textBound.height() * 1.2));
-
-		canvas.drawText(textObjectMeterWidth,
-				cropRectangle.left + (cropRectangle.width() / 2f) -  (textBound.width() / 2f),
-				textTop,
-				textPaint);
-
-		this.textPaint.getTextBounds(textObjectMeterHeight, 0, textObjectMeterHeight.length(), textBound);
-
-		int textLeft = cropRectangle.left - textBound.height();
-
-		if (isScale? (textLeft < backgroundRect.left) : (textLeft < 0)) textLeft = (int)(cropRectangle.left + (textBound.height() * 1.2));
-
-		PointF p = new PointF(textLeft, cropRectangle.bottom - (cropRectangle.height() / 2f) + (textBound.width() / 2f));
-
-		canvas.save();
-		canvas.rotate(-90, p.x, p.y);
-		canvas.drawText(textObjectMeterHeight, p.x, p.y, textPaint);
-		canvas.restore();
-	}
-
-	@Override
-	protected void onDraw(Canvas canvas) {
-		super.onDraw(canvas);
-
-		Rect cropRect = this.getCropRectangle();
-
-		// Clear Canvas
-		canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
-
-		// Draw Background Image
-		this.drawBackground(canvas, cropRect);
-
-		// Draw Sign Rectangle
-		this.drawSign(canvas, this.signRect);
-
-		// Draw Crop Rectangle
-		canvas.drawRect(cropRect, cropRectanglePaint);
-
-		if (!isLockMeasurement) {
-			// Draw Tracker
-			for (int i = 1; i <= 8; i++)
-			{
-				this.drawTracker(canvas, this.getHandleRectangle(i));
-			}
-		} else {
-			this.drawObjectMeasure(canvas, cropRect, true);
-		}
-	}
-
-	@Override
-	public boolean performClick() {
-		// Calls the super implementation, which generates an AccessibilityEvent
-		// and calls the onClick() listener on the view, if any
-		super.performClick();
-
-		// Handle the action for the custom click here
-		return true;
-	}
-
-	@Override
-	public boolean onTouchEvent(MotionEvent event) {
-		if (isLockMeasurement) return false;
-
-		Point position = new Point((int)event.getX(), (int)event.getY());
-
-		switch (event.getAction()) {
-			case MotionEvent.ACTION_DOWN:
-				selectionMode = SelectionMode.None;
-
-				handleNumber = this.hitTest(position);
-
-				if (handleNumber > 0) {
-					selectionMode = SelectionMode.ReSize;
-				} else {
-					Rect cropRect = this.getCropRectangle();
-
-					if (cropRect.contains((int)position.x, (int)position.y)) {
-						selectionMode = SelectionMode.Move;
-					}
-				}
-
-				lastPoint = position;
-				break;
-			case MotionEvent.ACTION_MOVE:
-				switch (selectionMode) {
-					case ReSize:
-						this.moveHandleTo(position, handleNumber);
-						break;
-					case Move:
-						this.move(position.x - lastPoint.x, position.y - lastPoint.y);
-						break;
-					default:
-						break;
-				}
-
-				lastPoint = position;
-				break;
-			case MotionEvent.ACTION_UP:
-				this.normalize();
-				break;
-			default:
-				break;
-		}
-
-		return this.performClick();
-	}
-
-	private Bitmap createImageResult() {
-		Rect originalCropRect = this.getOriginalCropRect();
-		Bitmap bmp = Bitmap.createBitmap(this.backgroundImage.getWidth(), this.backgroundImage.getHeight(), Config.ARGB_8888);
-		Canvas canvas = new Canvas(bmp);
-		canvas.drawBitmap(this.backgroundImage, 0, 0, backgroundPaint);
-		canvas.drawBitmap(
-				Bitmap.createBitmap(this.backgroundImage, originalCropRect.left, originalCropRect.top, originalCropRect.width(), originalCropRect.height()),
-				originalCropRect.left, originalCropRect.top, null);
-		canvas.drawRect(originalCropRect, this.cropRectanglePaint);
-
-		this.drawObjectMeasure(canvas, originalCropRect, false);
-
-		return bmp;
-	}
-
-	public void saveResult(String pathFilename) throws Exception {
-		Bitmap bmp = this.createImageResult();
-
-		try {
-			File file = new File(pathFilename);
-			FileOutputStream stream = new FileOutputStream(file);
-
-			stream.flush();
-			stream.write(DBObjectMeasurement.getBytes(bmp));
-			stream.close();
-		} catch (Exception ex) {
-			throw ex;
-		}
-	}
-
-	public Bitmap getImageResult() {
-		return this.createImageResult();
-	}
+
+    /** Notified while the box moves, so the host can show a live readout. */
+    public interface OnMeasureListener {
+        void onMeasureChanged(MeasuredSize size);
+    }
+
+    private enum Mode {NONE, RESIZE, MOVE}
+
+    private static final int HANDLE_COUNT = 8;
+
+    private final Paint dimPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+    private final Paint brightPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+    private final Paint cropPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint markerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint handleOuterPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint handleInnerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint labelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint labelBackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    private Bitmap image;
+    /** Where the bitmap is drawn, in view pixels. */
+    private final Rect imageRect = new Rect();
+    /** The selection, in image pixels. */
+    private final RectF crop = new RectF();
+
+    private SignMeasurement marker;
+    private MeasuredSize measured = MeasuredSize.EMPTY;
+    private LengthUnit unit = LengthUnit.MM;
+    private boolean locked;
+
+    private Mode mode = Mode.NONE;
+    private int activeHandle = -1;
+    private float lastX;
+    private float lastY;
+
+    private float handleRadius;
+    private float minCropPx;
+    private OnMeasureListener measureListener;
+
+    public MeasurementGraphicView(Context context) {
+        super(context);
+        initialise();
+    }
+
+    public MeasurementGraphicView(Context context, @Nullable AttributeSet attrs) {
+        super(context, attrs);
+        initialise();
+    }
+
+    private void initialise() {
+        float density = getResources().getDisplayMetrics().density;
+        handleRadius = dp(14);
+        minCropPx = dp(24);
+
+        dimPaint.setAlpha(70);
+
+        cropPaint.setStyle(Paint.Style.STROKE);
+        cropPaint.setColor(Color.WHITE);
+        cropPaint.setStrokeWidth(2f * density);
+
+        markerPaint.setStyle(Paint.Style.STROKE);
+        markerPaint.setColor(0xFF00E07A);
+        markerPaint.setStrokeWidth(2f * density);
+
+        handleOuterPaint.setColor(0xB4186584);
+        handleInnerPaint.setColor(0xE631B6E7);
+
+        labelPaint.setColor(Color.WHITE);
+        labelPaint.setTypeface(Typeface.DEFAULT_BOLD);
+        labelPaint.setTextSize(dp(14));
+
+        labelBackPaint.setColor(0xCC000000);
+    }
+
+    private float dp(float value) {
+        return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value,
+                getResources().getDisplayMetrics());
+    }
+
+    // ------------------------------------------------------------------ input
+
+    public void setImage(Bitmap bitmap, @Nullable SignMeasurement marker) {
+        this.image = bitmap;
+        this.marker = marker;
+        this.locked = false;
+        this.measured = MeasuredSize.EMPTY;
+        crop.setEmpty();
+        cropPaint.setColor(Color.WHITE);
+        computeLayout();
+        invalidate();
+    }
+
+    public void setUnit(LengthUnit unit) {
+        this.unit = unit == null ? LengthUnit.MM : unit;
+        invalidate();
+    }
+
+    public void setOnMeasureListener(OnMeasureListener listener) {
+        this.measureListener = listener;
+    }
+
+    public boolean hasImage() {
+        return image != null;
+    }
+
+    public boolean isLocked() {
+        return locked;
+    }
+
+    @Nullable
+    public SignMeasurement getMarker() {
+        return marker;
+    }
+
+    public MeasuredSize getMeasured() {
+        return measured;
+    }
+
+    /** The current selection in image pixels — this is what gets measured. */
+    public Rect getCropInImage() {
+        ensureCrop();
+        return new Rect(
+                Math.round(crop.left), Math.round(crop.top),
+                Math.round(crop.right), Math.round(crop.bottom));
+    }
+
+    public void setCropInImage(Rect rect) {
+        if (rect == null || image == null) return;
+        crop.set(
+                clamp(rect.left, 0, image.getWidth()),
+                clamp(rect.top, 0, image.getHeight()),
+                clamp(rect.right, 0, image.getWidth()),
+                clamp(rect.bottom, 0, image.getHeight()));
+        recomputeMeasurement();
+        invalidate();
+    }
+
+    /** Freeze the selection and show the result. */
+    public void lockMeasurement(MeasuredSize size) {
+        this.measured = size == null ? MeasuredSize.EMPTY : size;
+        this.locked = true;
+        cropPaint.setColor(0xFFFF8000);
+        invalidate();
+    }
+
+    public void unlockMeasurement() {
+        this.locked = false;
+        this.measured = MeasuredSize.EMPTY;
+        cropPaint.setColor(Color.WHITE);
+        invalidate();
+        notifyMeasure();
+    }
+
+    // ----------------------------------------------------------------- layout
+
+    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        computeLayout();
+    }
+
+    private void computeLayout() {
+        if (image == null || getWidth() == 0 || getHeight() == 0) {
+            imageRect.setEmpty();
+            return;
+        }
+        float viewAspect = getWidth() / (float) getHeight();
+        float imageAspect = image.getWidth() / (float) image.getHeight();
+
+        int width;
+        int height;
+        if (imageAspect > viewAspect) {
+            width = getWidth();
+            height = Math.max(1, Math.round(width / imageAspect));
+        } else {
+            height = getHeight();
+            width = Math.max(1, Math.round(height * imageAspect));
+        }
+        int left = (getWidth() - width) / 2;
+        int top = (getHeight() - height) / 2;
+        imageRect.set(left, top, left + width, top + height);
+        if (ensureCrop()) recomputeMeasurement();
+    }
+
+    /** @return true when a default selection had to be created */
+    private boolean ensureCrop() {
+        if (image == null || !crop.isEmpty()) return false;
+        // Start with a box covering the middle half of the frame.
+        float w = image.getWidth() * 0.45f;
+        float h = image.getHeight() * 0.35f;
+        float cx = image.getWidth() / 2f;
+        float cy = image.getHeight() / 2f;
+        crop.set(cx - w / 2f, cy - h / 2f, cx + w / 2f, cy + h / 2f);
+        return true;
+    }
+
+    // ------------------------------------------------------ coordinate mapping
+
+    private float imageToViewX(float x) {
+        if (image == null || imageRect.isEmpty()) return x;
+        return imageRect.left + x * imageRect.width() / (float) image.getWidth();
+    }
+
+    private float imageToViewY(float y) {
+        if (image == null || imageRect.isEmpty()) return y;
+        return imageRect.top + y * imageRect.height() / (float) image.getHeight();
+    }
+
+    private float viewToImageX(float x) {
+        if (image == null || imageRect.isEmpty()) return x;
+        return (x - imageRect.left) * image.getWidth() / (float) imageRect.width();
+    }
+
+    private float viewToImageY(float y) {
+        if (image == null || imageRect.isEmpty()) return y;
+        return (y - imageRect.top) * image.getHeight() / (float) imageRect.height();
+    }
+
+    private RectF cropInView() {
+        return new RectF(
+                imageToViewX(crop.left), imageToViewY(crop.top),
+                imageToViewX(crop.right), imageToViewY(crop.bottom));
+    }
+
+    // ------------------------------------------------------------------- draw
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
+        if (image == null || imageRect.isEmpty()) return;
+
+        ensureCrop();
+        RectF view = cropInView();
+
+        // Dimmed everywhere, full brightness inside the selection.
+        canvas.drawBitmap(image, null, imageRect, dimPaint);
+        canvas.save();
+        canvas.clipRect(view);
+        canvas.drawBitmap(image, null, imageRect, brightPaint);
+        canvas.restore();
+
+        drawMarker(canvas);
+        canvas.drawRect(view, cropPaint);
+
+        if (locked) {
+            drawResultLabels(canvas, view);
+        } else {
+            for (int i = 0; i < HANDLE_COUNT; i++) {
+                drawHandle(canvas, handleX(i, view), handleY(i, view));
+            }
+            if (!measured.isEmpty()) {
+                drawResultLabels(canvas, view);
+            }
+        }
+    }
+
+    private void drawMarker(Canvas canvas) {
+        if (marker == null) return;
+        Point[] corners = marker.cornerPoints();
+        for (int i = 0; i < 4; i++) {
+            Point a = corners[i];
+            Point b = corners[(i + 1) % 4];
+            canvas.drawLine(
+                    imageToViewX((float) a.x), imageToViewY((float) a.y),
+                    imageToViewX((float) b.x), imageToViewY((float) b.y),
+                    markerPaint);
+        }
+    }
+
+    private void drawHandle(Canvas canvas, float cx, float cy) {
+        canvas.drawCircle(cx, cy, handleRadius, handleOuterPaint);
+        canvas.drawCircle(cx, cy, handleRadius * 0.4f, handleInnerPaint);
+    }
+
+    private void drawResultLabels(Canvas canvas, RectF view) {
+        if (measured.isEmpty()) return;
+
+        String width = unit.format(measured.widthMm);
+        String height = unit.format(measured.heightMm);
+
+        float padding = dp(6);
+        float textHeight = labelPaint.getTextSize();
+
+        // Width label, above the box (below it when there is no room).
+        float widthText = labelPaint.measureText(width);
+        float wx = view.centerX() - widthText / 2f;
+        float wy = view.top - padding * 1.5f;
+        if (wy - textHeight < 0) wy = view.top + textHeight + padding * 1.5f;
+        drawLabel(canvas, width, wx, wy, padding);
+
+        // Height label, rotated along the left edge.
+        float heightText = labelPaint.measureText(height);
+        float hx = view.left - padding * 1.5f;
+        if (hx - textHeight < 0) hx = view.left + textHeight + padding * 1.5f;
+        float hy = view.centerY() + heightText / 2f;
+
+        canvas.save();
+        canvas.rotate(-90, hx, hy);
+        drawLabel(canvas, height, hx, hy, padding);
+        canvas.restore();
+    }
+
+    private void drawLabel(Canvas canvas, String text, float x, float baselineY, float padding) {
+        float width = labelPaint.measureText(text);
+        float ascent = -labelPaint.ascent();
+        float descent = labelPaint.descent();
+        canvas.drawRoundRect(
+                x - padding, baselineY - ascent - padding / 2f,
+                x + width + padding, baselineY + descent + padding / 2f,
+                padding, padding, labelBackPaint);
+        canvas.drawText(text, x, baselineY, labelPaint);
+    }
+
+    // ------------------------------------------------------------------ touch
+
+    private float handleX(int index, RectF r) {
+        switch (index) {
+            case 0: case 6: case 7: return r.left;
+            case 2: case 3: case 4: return r.right;
+            default: return r.centerX();
+        }
+    }
+
+    private float handleY(int index, RectF r) {
+        switch (index) {
+            case 0: case 1: case 2: return r.top;
+            case 4: case 5: case 6: return r.bottom;
+            default: return r.centerY();
+        }
+    }
+
+    private int hitTest(float x, float y) {
+        RectF view = cropInView();
+        float slack = handleRadius * 1.3f;
+        for (int i = 0; i < HANDLE_COUNT; i++) {
+            if (Math.hypot(x - handleX(i, view), y - handleY(i, view)) <= slack) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    @Override
+    public boolean performClick() {
+        super.performClick();
+        return true;
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if (locked || image == null || imageRect.isEmpty()) return false;
+
+        float x = event.getX();
+        float y = event.getY();
+
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                activeHandle = hitTest(x, y);
+                if (activeHandle >= 0) {
+                    mode = Mode.RESIZE;
+                } else if (cropInView().contains(x, y)) {
+                    mode = Mode.MOVE;
+                } else {
+                    mode = Mode.NONE;
+                    return false;
+                }
+                lastX = x;
+                lastY = y;
+                getParent().requestDisallowInterceptTouchEvent(true);
+                return true;
+
+            case MotionEvent.ACTION_MOVE:
+                if (mode == Mode.RESIZE) {
+                    resize(activeHandle, viewToImageX(x), viewToImageY(y));
+                } else if (mode == Mode.MOVE) {
+                    translate(viewToImageX(x) - viewToImageX(lastX),
+                            viewToImageY(y) - viewToImageY(lastY));
+                } else {
+                    return false;
+                }
+                lastX = x;
+                lastY = y;
+                return true;
+
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                normalise();
+                mode = Mode.NONE;
+                activeHandle = -1;
+                performClick();
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    private void resize(int handle, float ix, float iy) {
+        switch (handle) {
+            case 0: crop.left = ix; crop.top = iy; break;
+            case 1: crop.top = iy; break;
+            case 2: crop.right = ix; crop.top = iy; break;
+            case 3: crop.right = ix; break;
+            case 4: crop.right = ix; crop.bottom = iy; break;
+            case 5: crop.bottom = iy; break;
+            case 6: crop.left = ix; crop.bottom = iy; break;
+            case 7: crop.left = ix; break;
+            default: return;
+        }
+        clampToImage();
+        recomputeMeasurement();
+        invalidate();
+    }
+
+    private void translate(float dx, float dy) {
+        float width = crop.width();
+        float height = crop.height();
+
+        crop.offset(dx, dy);
+        if (crop.left < 0) crop.offsetTo(0, crop.top);
+        if (crop.top < 0) crop.offsetTo(crop.left, 0);
+        if (crop.right > image.getWidth()) crop.offsetTo(image.getWidth() - width, crop.top);
+        if (crop.bottom > image.getHeight()) crop.offsetTo(crop.left, image.getHeight() - height);
+
+        recomputeMeasurement();
+        invalidate();
+    }
+
+    private void clampToImage() {
+        crop.left = clamp(crop.left, 0, image.getWidth());
+        crop.right = clamp(crop.right, 0, image.getWidth());
+        crop.top = clamp(crop.top, 0, image.getHeight());
+        crop.bottom = clamp(crop.bottom, 0, image.getHeight());
+    }
+
+    private void normalise() {
+        if (crop.left > crop.right) {
+            float t = crop.left;
+            crop.left = crop.right;
+            crop.right = t;
+        }
+        if (crop.top > crop.bottom) {
+            float t = crop.top;
+            crop.top = crop.bottom;
+            crop.bottom = t;
+        }
+        // Keep the box big enough to still be grabbable.
+        float minImagePx = minCropPx * image.getWidth() / Math.max(1, imageRect.width());
+        if (crop.width() < minImagePx) crop.right = crop.left + minImagePx;
+        if (crop.height() < minImagePx) crop.bottom = crop.top + minImagePx;
+        clampToImage();
+        recomputeMeasurement();
+        invalidate();
+    }
+
+    private static float clamp(float value, float min, float max) {
+        return value < min ? min : (value > max ? max : value);
+    }
+
+    // ----------------------------------------------------------- measurement
+
+    private void recomputeMeasurement() {
+        if (marker == null || !marker.hasMarkerSize() || crop.isEmpty()) {
+            measured = MeasuredSize.EMPTY;
+        } else {
+            measured = marker.measure(getCropInImage());
+        }
+        notifyMeasure();
+    }
+
+    /**
+     * Delivered on the next frame rather than inline: recomputation can be
+     * triggered from {@code onSizeChanged} and {@code onDraw}, and hosts respond
+     * by setting text on another view — a layout request from inside a layout or
+     * draw pass.
+     */
+    private void notifyMeasure() {
+        if (measureListener == null) return;
+        final MeasuredSize snapshot = measured;
+        post(() -> {
+            if (measureListener != null) measureListener.onMeasureChanged(snapshot);
+        });
+    }
+
+    // ---------------------------------------------------------------- results
+
+    /**
+     * The annotated image, at full resolution, for saving and sharing.
+     * Rendered against a fresh canvas rather than the on-screen one so the export
+     * is not tied to the current view size.
+     */
+    public Bitmap renderResult() {
+        if (image == null) return null;
+
+        Bitmap out = Bitmap.createBitmap(image.getWidth(), image.getHeight(),
+                Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(out);
+        Rect full = new Rect(0, 0, image.getWidth(), image.getHeight());
+        Rect box = getCropInImage();
+
+        canvas.drawBitmap(image, null, full, dimPaint);
+        canvas.save();
+        canvas.clipRect(box);
+        canvas.drawBitmap(image, null, full, brightPaint);
+        canvas.restore();
+
+        // Scale the annotation strokes to the exported resolution.
+        float scale = Math.max(1f, image.getWidth() / 720f);
+        Paint exportCrop = new Paint(cropPaint);
+        exportCrop.setStrokeWidth(cropPaint.getStrokeWidth() * scale);
+        Paint exportMarker = new Paint(markerPaint);
+        exportMarker.setStrokeWidth(markerPaint.getStrokeWidth() * scale);
+        Paint exportLabel = new Paint(labelPaint);
+        exportLabel.setTextSize(labelPaint.getTextSize() * scale);
+
+        if (marker != null) {
+            Point[] corners = marker.cornerPoints();
+            for (int i = 0; i < 4; i++) {
+                Point a = corners[i];
+                Point b = corners[(i + 1) % 4];
+                canvas.drawLine((float) a.x, (float) a.y, (float) b.x, (float) b.y, exportMarker);
+            }
+        }
+        canvas.drawRect(box, exportCrop);
+
+        if (!measured.isEmpty()) {
+            float padding = 6 * scale;
+            String width = unit.format(measured.widthMm);
+            String height = unit.format(measured.heightMm);
+
+            float wx = box.centerX() - exportLabel.measureText(width) / 2f;
+            float wy = box.top - padding * 1.5f;
+            if (wy - exportLabel.getTextSize() < 0) {
+                wy = box.top + exportLabel.getTextSize() + padding * 1.5f;
+            }
+            drawExportLabel(canvas, exportLabel, width, wx, wy, padding);
+
+            float hx = box.left - padding * 1.5f;
+            if (hx - exportLabel.getTextSize() < 0) {
+                hx = box.left + exportLabel.getTextSize() + padding * 1.5f;
+            }
+            float hy = box.centerY() + exportLabel.measureText(height) / 2f;
+            canvas.save();
+            canvas.rotate(-90, hx, hy);
+            drawExportLabel(canvas, exportLabel, height, hx, hy, padding);
+            canvas.restore();
+        }
+
+        return out;
+    }
+
+    private void drawExportLabel(Canvas canvas, Paint paint, String text,
+                                 float x, float baselineY, float padding) {
+        float width = paint.measureText(text);
+        canvas.drawRoundRect(
+                x - padding, baselineY + paint.ascent() - padding / 2f,
+                x + width + padding, baselineY + paint.descent() + padding / 2f,
+                padding, padding, labelBackPaint);
+        canvas.drawText(text, x, baselineY, paint);
+    }
+
+    // ------------------------------------------------------------------ state
+
+    /**
+     * Saves geometry only. The old version put the whole background bitmap into
+     * the state Bundle, which risks {@code TransactionTooLargeException} on
+     * rotation; the host re-decodes the photo from disk instead.
+     */
+    public void saveState(Bundle out) {
+        out.putFloatArray("crop", new float[]{crop.left, crop.top, crop.right, crop.bottom});
+        out.putBoolean("locked", locked);
+        out.putDouble("measuredWidthMm", measured.widthMm);
+        out.putDouble("measuredHeightMm", measured.heightMm);
+        out.putBoolean("measuredPerspective", measured.perspectiveCorrected);
+    }
+
+    public void restoreState(Bundle in) {
+        float[] values = in.getFloatArray("crop");
+        if (values != null && values.length == 4) {
+            crop.set(values[0], values[1], values[2], values[3]);
+        }
+        double width = in.getDouble("measuredWidthMm", 0);
+        double height = in.getDouble("measuredHeightMm", 0);
+        if (width > 0 && height > 0) {
+            measured = new MeasuredSize(width, height,
+                    in.getBoolean("measuredPerspective", false));
+        }
+        if (in.getBoolean("locked", false)) {
+            lockMeasurement(measured);
+        }
+        invalidate();
+    }
 }

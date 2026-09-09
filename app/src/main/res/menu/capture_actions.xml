@@ -1,21 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
-<menu xmlns:android="http://schemas.android.com/apk/res/android" >
-    
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
     <item
         android:id="@+id/action_camera"
         android:title="@string/action_camera"
-        android:showAsAction="ifRoom|withText" />
+        app:showAsAction="ifRoom|withText" />
     <item
         android:id="@+id/action_gallery"
         android:title="@string/action_gallery"
-        android:showAsAction="ifRoom|withText" />
+        app:showAsAction="ifRoom|withText" />
+    <item
+        android:id="@+id/action_share"
+        android:title="@string/action_share"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_export"
+        android:title="@string/action_export"
+        app:showAsAction="never" />
     <item
         android:id="@+id/action_setting"
         android:title="@string/action_setting"
-        android:showAsAction="collapseActionView" />
+        app:showAsAction="never" />
     <item
-        android:id="@+id/action_back"
-        android:title="@string/action_back"
-        android:showAsAction="collapseActionView" />
+        android:id="@+id/action_clear"
+        android:title="@string/action_clear"
+        app:showAsAction="never" />
 
 </menu>

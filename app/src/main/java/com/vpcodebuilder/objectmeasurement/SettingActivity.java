@@ -1,436 +1,536 @@
 package com.vpcodebuilder.objectmeasurement;
 
-import java.io.File;
-
-import org.opencv.android.BaseLoaderCallback;
-import org.opencv.android.LoaderCallbackInterface;
-import org.opencv.android.OpenCVLoader;
-import org.opencv.core.Size;
-
-import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.ActivityNotFoundException;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
-import android.graphics.Point;
+import android.graphics.Matrix;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Environment;
-import android.provider.MediaStore;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.Menu;
-import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
-import android.view.View.OnClickListener;
-import android.widget.Button;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.ImageView;
-import android.widget.SeekBar;
-import android.widget.Toast;
-import android.widget.SeekBar.OnSeekBarChangeListener;
+import android.widget.Spinner;
 import android.widget.TextView;
-
-import eu.geekplace.iesp.ImportExportSharedPreferences;
-
-public class SettingActivity extends Activity {
-	public static final String SETTING_PREFERENCE = "App_Config";
-	private static final int REQUEST_CAMERA = 1;
-	private static final int REQUEST_CHOOSE_DIRECTORY = 2;
-	private static final int REQUEST_CHOOSE_FILE = 3;
-
-	public static final String SETTING_REAL_SIGN_WIDTH = "realSignWidth";
-	public static final String SETTING_REAL_SIGN_HEIGHT = "realSignHeight";
-	public static final String HUE_LOWER = "hueLower";
-	public static final String HUE_UPPER = "hueUpper";
-	public static final String SATURATION_LOWER = "saturationLower";
-	public static final String SATURATION_UPPER = "saturationUpper";
-	public static final String VALUE_LOWER = "valueLower";
-	public static final String VALUE_UPPER = "valueUpper";
-
-	private SeekBar sbHueLower;
-	private SeekBar sbHueUpper;
-	private SeekBar sbSaturationLower;
-	private SeekBar sbSaturationUpper;
-	private SeekBar sbValueLower;
-	private SeekBar sbValueUpper;
-	private TextView txtSignWidth;
-	private TextView txtSignHeight;
-	private TextView lblHueRangeValue;
-	private TextView lblSaturationRangeValue;
-	private TextView lblValueRangeValue;
-	private GradientColorView colorRangeView;
-	private ImageView imageBefore;
-	private ImageView imageAfter;
-	private Uri imageCaptureUri = null;
-	private Bitmap frame = null;
-	private Bitmap preprocessImage = null;
-	private MeasurementDetector processor;
-	private Point screenSize;
-
-	private SharedPreferences getSettingPreferences() {
-		return getSharedPreferences(SETTING_PREFERENCE, 0);
-	}
-
-	@Override
-	protected void onCreate(Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-
-		setContentView(R.layout.activity_setting);
-
-		Button btCapture = (Button)findViewById(R.id.btCapture);
-		Button btSave = (Button)findViewById(R.id.btSave);
-		Button btClose = (Button)findViewById(R.id.btClose);
-
-		sbHueLower = (SeekBar)findViewById(R.id.sbHueLower);
-		sbHueUpper = (SeekBar)findViewById(R.id.sbHueUppper);
-		sbSaturationLower = (SeekBar)findViewById(R.id.sbSaturationLower);
-		sbSaturationUpper = (SeekBar)findViewById(R.id.sbSaturationUppper);
-		sbValueLower = (SeekBar)findViewById(R.id.sbValueLower);
-		sbValueUpper = (SeekBar)findViewById(R.id.sbValueUppper);
-
-		txtSignWidth = (TextView)findViewById(R.id.txtSignWidth);
-		txtSignHeight = (TextView)findViewById(R.id.txtSignHeight);
-		lblHueRangeValue = (TextView)findViewById(R.id.lblHueRangeValue);
-		lblSaturationRangeValue = (TextView)findViewById(R.id.lblSaturationRangeValue);
-		lblValueRangeValue = (TextView)findViewById(R.id.lblValueRangeValue);
-		colorRangeView = (GradientColorView)findViewById(R.id.colorRangeView);
-
-		imageBefore = (ImageView)findViewById(R.id.imageBefore);
-		imageAfter = (ImageView)findViewById(R.id.imageAfter);
-
-		btCapture.setOnClickListener(btCaptureClick);
-		btSave.setOnClickListener(btSaveClick);
-		btClose.setOnClickListener(btCloseClick);
-		sbHueUpper.setOnSeekBarChangeListener(sbHueUpperChange);
-		sbHueLower.setOnSeekBarChangeListener(sbHueLowerChange);
-		sbSaturationUpper.setOnSeekBarChangeListener(sbSaturationUpperChange);
-		sbSaturationLower.setOnSeekBarChangeListener(sbSaturationLowerChange);
-		sbValueUpper.setOnSeekBarChangeListener(sbValueUpperChange);
-		sbValueLower.setOnSeekBarChangeListener(sbValueLowerChange);
-
-		screenSize = DeviceHelper.getScreenResolution(this);
-
-		if (savedInstanceState != null) {
-			imageCaptureUri = savedInstanceState.getParcelable("imageCaptureUri");
-
-			if (imageCaptureUri != null) this.loadProcessImage();
-
-			return;
-		}
-
-		SharedPreferences settingPreferences = getSettingPreferences();
-		this.loadSettingPreferences(settingPreferences);
-	}
-
-	private void loadSettingPreferences(SharedPreferences settingPreferences) {
-		if (settingPreferences == null) return;
-
-		txtSignWidth.setText(String.valueOf(settingPreferences.getFloat(SETTING_REAL_SIGN_WIDTH, 0)));
-		txtSignHeight.setText(String.valueOf(settingPreferences.getFloat(SETTING_REAL_SIGN_HEIGHT, 0)));
-		sbHueLower.setProgress(settingPreferences.getInt(HUE_LOWER, 0));
-		sbHueUpper.setProgress(settingPreferences.getInt(HUE_UPPER, 180));
-		sbSaturationLower.setProgress(settingPreferences.getInt(SATURATION_LOWER, 0));
-		sbSaturationUpper.setProgress(settingPreferences.getInt(SATURATION_UPPER, 255));
-		sbValueLower.setProgress(settingPreferences.getInt(VALUE_LOWER, 0));
-		sbValueUpper.setProgress(settingPreferences.getInt(VALUE_UPPER, 255));
-		lblHueRangeValue.setText(String.format("[%d, %d]", sbHueLower.getProgress(), sbHueUpper.getProgress()));
-		lblSaturationRangeValue.setText(String.format("[%d, %d]", sbSaturationLower.getProgress(), sbSaturationUpper.getProgress()));
-		lblValueRangeValue.setText(String.format("[%d, %d]", sbValueLower.getProgress(), sbValueUpper.getProgress()));
-		colorRangeView.setRange(sbHueLower.getProgress(), sbHueUpper.getProgress());
-	}
-
-	private void saveSettingPreferences(SharedPreferences settingPreferences) {
-		if (settingPreferences == null) return;
-
-		SharedPreferences.Editor editor = settingPreferences.edit();
-
-		editor.putFloat(SETTING_REAL_SIGN_WIDTH, Float.parseFloat(txtSignWidth.getText().toString()));
-		editor.putFloat(SETTING_REAL_SIGN_HEIGHT, Float.parseFloat(txtSignHeight.getText().toString()));
-		editor.putInt(HUE_LOWER, sbHueLower.getProgress());
-		editor.putInt(HUE_UPPER, sbHueUpper.getProgress());
-		editor.putInt(SATURATION_LOWER, sbSaturationLower.getProgress());
-		editor.putInt(SATURATION_UPPER, sbSaturationUpper.getProgress());
-		editor.putInt(VALUE_LOWER, sbValueLower.getProgress());
-		editor.putInt(VALUE_UPPER, sbValueUpper.getProgress());
-		editor.commit();
-	}
-
-	private OnClickListener btCaptureClick = new OnClickListener() {
-		@Override
-		public void onClick(View v) {
-			openCamera();
-		}
-	};
-
-	private OnClickListener btSaveClick = new OnClickListener() {
-		@Override
-		public void onClick(View v) {
-			SharedPreferences settingPreferences = getSettingPreferences();
-			saveSettingPreferences(settingPreferences);
-
-			deleteFileBuffer();
-			finish();
-		}
-	};
-
-	private OnClickListener btCloseClick = new OnClickListener() {
-		@Override
-		public void onClick(View v) {
-			deleteFileBuffer();
-			finish();
-		}
-	};
-
-	private OnSeekBarChangeListener sbHueUpperChange = new OnSeekBarChangeListener() {
-		@Override
-		public void onProgressChanged(SeekBar sender, int value, boolean changed) {
-			if (value < sbHueLower.getProgress()) sbHueLower.setProgress(value);
-			lblHueRangeValue.setText(String.format("[%d, %d]", sbHueLower.getProgress(), sbHueUpper.getProgress()));
-			colorRangeView.setRange(sbHueLower.getProgress(), sbHueUpper.getProgress());
-			adjustPreprocess();
-		}
-
-		@Override
-		public void onStartTrackingTouch(SeekBar sender) { }
-
-		@Override
-		public void onStopTrackingTouch(SeekBar sender) { }
-	};
-
-	private OnSeekBarChangeListener sbHueLowerChange = new OnSeekBarChangeListener() {
-		@Override
-		public void onProgressChanged(SeekBar sender, int value, boolean changed) {
-			if (value > sbHueUpper.getProgress()) sbHueUpper.setProgress(value);
-			lblHueRangeValue.setText(String.format("[%d, %d]", sbHueLower.getProgress(), sbHueUpper.getProgress()));
-			colorRangeView.setRange(sbHueLower.getProgress(), sbHueUpper.getProgress());
-			adjustPreprocess();
-		}
-
-		@Override
-		public void onStartTrackingTouch(SeekBar sender) { }
-
-		@Override
-		public void onStopTrackingTouch(SeekBar sender) { }
-	};
-
-	private OnSeekBarChangeListener sbSaturationUpperChange = new OnSeekBarChangeListener() {
-		@Override
-		public void onProgressChanged(SeekBar sender, int value, boolean changed) {
-			if (value < sbSaturationLower.getProgress()) sbSaturationLower.setProgress(value);
-			lblSaturationRangeValue.setText(String.format("[%d, %d]", sbSaturationLower.getProgress(), sbSaturationUpper.getProgress()));
-			adjustPreprocess();
-		}
-
-		@Override
-		public void onStartTrackingTouch(SeekBar sender) { }
-
-		@Override
-		public void onStopTrackingTouch(SeekBar sender) { }
-	};
-
-	private OnSeekBarChangeListener sbSaturationLowerChange = new OnSeekBarChangeListener() {
-		@Override
-		public void onProgressChanged(SeekBar sender, int value, boolean changed) {
-			if (value > sbSaturationUpper.getProgress()) sbSaturationUpper.setProgress(value);
-			lblSaturationRangeValue.setText(String.format("[%d, %d]", sbSaturationLower.getProgress(), sbSaturationUpper.getProgress()));
-			adjustPreprocess();
-		}
-
-		@Override
-		public void onStartTrackingTouch(SeekBar sender) { }
-
-		@Override
-		public void onStopTrackingTouch(SeekBar sender) { }
-	};
-
-	private OnSeekBarChangeListener sbValueUpperChange = new OnSeekBarChangeListener() {
-		@Override
-		public void onProgressChanged(SeekBar sender, int value, boolean changed) {
-			if (value < sbValueLower.getProgress()) sbValueLower.setProgress(value);
-			lblValueRangeValue.setText(String.format("[%d, %d]", sbValueLower.getProgress(), sbValueUpper.getProgress()));
-			adjustPreprocess();
-		}
-
-		@Override
-		public void onStartTrackingTouch(SeekBar sender) { }
-
-		@Override
-		public void onStopTrackingTouch(SeekBar sender) { }
-	};
-
-	private OnSeekBarChangeListener sbValueLowerChange = new OnSeekBarChangeListener() {
-		@Override
-		public void onProgressChanged(SeekBar sender, int value, boolean changed) {
-			if (value > sbValueUpper.getProgress()) sbValueUpper.setProgress(value);
-			lblValueRangeValue.setText(String.format("[%d, %d]", sbValueLower.getProgress(), sbValueUpper.getProgress()));
-			adjustPreprocess();
-		}
-
-		@Override
-		public void onStartTrackingTouch(SeekBar sender) { }
-
-		@Override
-		public void onStopTrackingTouch(SeekBar sender) { }
-	};
-
-	@Override
-	public void onSaveInstanceState(Bundle savedInstanceState) {
-		super.onSaveInstanceState(savedInstanceState);
-		savedInstanceState.putParcelable("imageCaptureUri", imageCaptureUri);
-	}
-
-	@Override
-	public void onResume()
-	{
-		super.onResume();
-		OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_2_4_9, this, mLoaderCallback);
-	}
-
-	@Override
-	public boolean onCreateOptionsMenu(Menu menu) {
-		MenuInflater inflater = getMenuInflater();
-		inflater.inflate(R.menu.menu_activity_setting_actions, menu);
-		return true;
-	}
-
-	@Override
-	public boolean onOptionsItemSelected(MenuItem item) {
-		Intent intent = new Intent(this, DirectoryPickerActivity.class);
-
-		switch (item.getItemId()) {
-			case R.id.action_activity_setting_import:
-				intent.putExtra(DirectoryPickerActivity.ONLY_DIRS, false);
-				intent.putExtra(DirectoryPickerActivity.FILTER_EXTENSION, ".om");
-				startActivityForResult(intent, REQUEST_CHOOSE_FILE);
-				break;
-			case R.id.action_activity_setting_export:
-				intent.putExtra(DirectoryPickerActivity.ONLY_DIRS, true);
-				startActivityForResult(intent, REQUEST_CHOOSE_DIRECTORY);
-				break;
-			default:
-				break;
-		}
-
-		return true;
-	}
-
-	@Override
-	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-		super.onActivityResult(requestCode, resultCode, data);
-
-		if (resultCode == RESULT_OK) {
-			switch (requestCode) {
-				case REQUEST_CAMERA:
-					getContentResolver().notifyChange(imageCaptureUri, null);
-					this.loadProcessImage();
-					break;
-				case REQUEST_CHOOSE_DIRECTORY:
-				case REQUEST_CHOOSE_FILE:
-					Bundle extras = data.getExtras();
-					String path = (String)extras.get(DirectoryPickerActivity.CHOSEN_DIRECTORY);
-					SharedPreferences settingPreferences = getSettingPreferences();
-
-					if (requestCode == REQUEST_CHOOSE_DIRECTORY) {
-						try
-						{
-							File exportSetting = new File(path + "/configuration.om");
-							this.saveSettingPreferences(settingPreferences);
-							ImportExportSharedPreferences.exportToFile(settingPreferences, exportSetting, null);
-							Toast.makeText(this, "ส่งออกไฟล์เรียบร้อยแล้ว", Toast.LENGTH_LONG).show();
-						} catch (Exception ex) {
-							Toast.makeText(this, ex.getMessage(), Toast.LENGTH_LONG).show();
-						}
-					} else {
-						try
-						{
-							File importSetting = new File(path);
-							ImportExportSharedPreferences.importFromFile(settingPreferences, importSetting);
-							this.loadSettingPreferences(settingPreferences);
-							this.saveSettingPreferences(settingPreferences);
-							Toast.makeText(this, "นำเข้าไฟล์เรียบร้อยแล้ว", Toast.LENGTH_LONG).show();
-						} catch (Exception ex) {
-							Toast.makeText(this, ex.getMessage(), Toast.LENGTH_LONG).show();
-						}
-					}
-
-					break;
-			}
-		}
-	}
-
-	private void openCamera() {
-		try {
-			Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-			String imageFileName = "setting_preprocess.jpg";
-			File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM), "Camera/" + imageFileName);
-
-			imageCaptureUri = Uri.fromFile(file);
-			intent.putExtra(MediaStore.EXTRA_OUTPUT, imageCaptureUri);
-			startActivityForResult(Intent.createChooser(intent, "เลือกโปรแกรมถ่ายภาพ"), REQUEST_CAMERA);
-		} catch (ActivityNotFoundException e) {
-			Toast.makeText(SettingActivity.this, e.getMessage(), Toast.LENGTH_LONG).show();
-		}
-	}
-
-	private void loadProcessImage() {
-		try {
-			frame = BitmapHelper.getBitmapFromPath(imageCaptureUri.getPath(), 1024);
-			processor = new MeasurementDetector(frame, new Size(0, 0));
-			preprocessImage = processor.preProcess(
-				sbHueLower.getProgress(), sbSaturationLower.getProgress(), sbValueLower.getProgress(),
-				sbHueUpper.getProgress(), sbSaturationUpper.getProgress(), sbValueUpper.getProgress());
-		} catch (Exception ex) {
-			showErrorDialog(ex);
-			return;
-		}
-
-		int reqWidth = (int)(screenSize.x / 2.0);
-
-		imageBefore.setImageBitmap(BitmapHelper.getScaledBitmap(frame, reqWidth));
-		imageAfter.setImageBitmap(BitmapHelper.getScaledBitmap(preprocessImage, reqWidth));
-	}
-
-	private void adjustPreprocess() {
-		if (imageCaptureUri == null) return;
-
-		try {
-			preprocessImage = processor.preProcess(
-					sbHueLower.getProgress(), sbSaturationLower.getProgress(), sbValueLower.getProgress(),
-					sbHueUpper.getProgress(), sbSaturationUpper.getProgress(), sbValueUpper.getProgress());
-		} catch (Exception ex) {
-			showErrorDialog(ex);
-			return;
-		}
-
-		int reqWidth = (int)(screenSize.x / 2.0);
-
-		imageAfter.setImageBitmap(BitmapHelper.getScaledBitmap(preprocessImage, reqWidth));
-	}
-
-	private void showErrorDialog(Exception ex) {
-		AlertDialog.Builder adlg = new AlertDialog.Builder(this);
-		adlg.setTitle("เกิดข้อผิดพลาด");
-		adlg.setMessage("พบข้อผิดพลาดในการทำงาน\n" + ex.toString());
-		adlg.show();
-	}
-
-	private void deleteFileBuffer() {
-		if (imageCaptureUri != null) {
-			File fDelete = new File(imageCaptureUri.getPath());
-			if (fDelete.exists()) fDelete.delete();
-		}
-	}
-
-	private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
-		@Override
-		public void onManagerConnected(int status) {
-			switch (status) {
-				case LoaderCallbackInterface.SUCCESS:
-					break;
-				default:
-					super.onManagerConnected(status);
-					break;
-			}
-		}
-	};
+import android.widget.Toast;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.PickVisualMediaRequest;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.slider.RangeSlider;
+import com.google.android.material.slider.Slider;
+import com.google.android.material.textfield.TextInputEditText;
+import com.vpcodebuilder.objectmeasurement.detect.DetectorConfig;
+import com.vpcodebuilder.objectmeasurement.detect.LengthUnit;
+import com.vpcodebuilder.objectmeasurement.detect.MarkerDetector;
+import com.vpcodebuilder.objectmeasurement.detect.MarkerPreset;
+import com.vpcodebuilder.objectmeasurement.detect.SignMeasurement;
+
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/**
+ * Marker dimensions, display unit, and detector tuning.
+ *
+ * <p>The headline change is that tuning is no longer a manual search through six
+ * sliders: load a photo of your marker, tap it, and the HSV window is derived
+ * from the pixels under your finger. The sliders remain for fine adjustment, and
+ * the right-hand preview shows exactly what the detector sees, with the marker it
+ * would pick outlined in green.</p>
+ *
+ * <p>Preview refreshes are debounced and run off the main thread. Previously each
+ * slider tick synchronously re-ran the whole pipeline — including a full pixel
+ * sort — on the UI thread.</p>
+ */
+public class SettingActivity extends AppCompatActivity {
+
+    private static final long PREVIEW_DEBOUNCE_MS = 180;
+    private static final int SAMPLE_RADIUS_PX = 12;
+
+    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final Runnable previewTask = this::refreshPreview;
+
+    private Spinner presetSpinner;
+    private Spinner unitSpinner;
+    private Spinner modeSpinner;
+    private TextInputEditText widthField;
+    private TextInputEditText heightField;
+    private Slider hueLower;
+    private Slider hueUpper;
+    private RangeSlider saturation;
+    private RangeSlider value;
+    private TextView hueLabel;
+    private TextView saturationLabel;
+    private TextView valueLabel;
+    private TextView detectStatus;
+    private GradientColorView colorRange;
+    private ImageView beforeImage;
+    private ImageView afterImage;
+
+    private DetectorConfig config;
+    private Bitmap sample;
+    private boolean suppressCallbacks;
+
+    private ActivityResultLauncher<PickVisualMediaRequest> photoLauncher;
+    private ActivityResultLauncher<String> exportLauncher;
+    private ActivityResultLauncher<String[]> importLauncher;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_setting);
+
+        MaterialToolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        toolbar.setNavigationOnClickListener(v -> finish());
+
+        presetSpinner = findViewById(R.id.spPreset);
+        unitSpinner = findViewById(R.id.spUnit);
+        modeSpinner = findViewById(R.id.spMode);
+        widthField = findViewById(R.id.txtSignWidth);
+        heightField = findViewById(R.id.txtSignHeight);
+        hueLower = findViewById(R.id.sbHueLower);
+        hueUpper = findViewById(R.id.sbHueUpper);
+        saturation = findViewById(R.id.sbSaturation);
+        value = findViewById(R.id.sbValue);
+        hueLabel = findViewById(R.id.lblHueRangeValue);
+        saturationLabel = findViewById(R.id.lblSaturationRangeValue);
+        valueLabel = findViewById(R.id.lblValueRangeValue);
+        detectStatus = findViewById(R.id.lblDetectStatus);
+        colorRange = findViewById(R.id.colorRangeView);
+        beforeImage = findViewById(R.id.imageBefore);
+        afterImage = findViewById(R.id.imageAfter);
+
+        config = DetectorConfig.from(getSettings());
+
+        setupSpinners();
+        bindConfigToViews();
+        setupListeners();
+        registerLaunchers();
+
+        findViewById(R.id.btCapture).setOnClickListener(v -> pickSamplePhoto());
+        findViewById(R.id.btResetColor).setOnClickListener(v -> resetColorRange());
+        ((MaterialButton) findViewById(R.id.btSave)).setOnClickListener(v -> saveAndClose());
+        ((MaterialButton) findViewById(R.id.btClose)).setOnClickListener(v -> finish());
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        main.removeCallbacks(previewTask);
+        worker.shutdownNow();
+    }
+
+    private SharedPreferences getSettings() {
+        return getSharedPreferences(DetectorConfig.PREFS, MODE_PRIVATE);
+    }
+
+    // ------------------------------------------------------------------ set-up
+
+    private void setupSpinners() {
+        presetSpinner.setAdapter(adapterFor(MarkerPreset.values()));
+        unitSpinner.setAdapter(adapterFor(LengthUnit.values()));
+
+        List<String> modes = new ArrayList<>();
+        modes.add(getString(R.string.settings_mode_auto));
+        modes.add(getString(R.string.settings_mode_color));
+        modes.add(getString(R.string.settings_mode_edge));
+        modeSpinner.setAdapter(new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_dropdown_item, modes));
+    }
+
+    private <T> ArrayAdapter<T> adapterFor(T[] values) {
+        return new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, values);
+    }
+
+    private void bindConfigToViews() {
+        suppressCallbacks = true;
+        try {
+            widthField.setText(config.markerWidthMm > 0
+                    ? trim(config.markerWidthMm) : "");
+            heightField.setText(config.markerHeightMm > 0
+                    ? trim(config.markerHeightMm) : "");
+
+            presetSpinner.setSelection(MarkerPreset
+                    .match(config.markerWidthMm, config.markerHeightMm).ordinal());
+
+            LengthUnit unit = LengthUnit.byName(
+                    getSettings().getString(DetectorConfig.KEY_UNIT, null), LengthUnit.MM);
+            unitSpinner.setSelection(unit.ordinal());
+
+            modeSpinner.setSelection(modeToSpinner(config.mode));
+
+            hueLower.setValue(clamp(config.hueLower, 0, 179));
+            hueUpper.setValue(clamp(config.hueUpper, 0, 179));
+            setRange(saturation, config.satLower, config.satUpper);
+            setRange(value, config.valLower, config.valUpper);
+        } finally {
+            suppressCallbacks = false;
+        }
+        updateRangeLabels();
+    }
+
+    /** RangeSlider requires ascending thumbs; a stale profile may not have them. */
+    private void setRange(RangeSlider slider, int low, int high) {
+        float lo = clamp(Math.min(low, high), 0, 255);
+        float hi = clamp(Math.max(low, high), 0, 255);
+        if (hi <= lo) hi = Math.min(255f, lo + 1f);
+        slider.setValues(lo, hi);
+    }
+
+    private static float clamp(int v, int lo, int hi) {
+        return v < lo ? lo : (v > hi ? hi : v);
+    }
+
+    private static String trim(double v) {
+        return v == Math.rint(v)
+                ? String.valueOf((long) v)
+                : String.format(Locale.US, "%.2f", v);
+    }
+
+    private static int modeToSpinner(int mode) {
+        if (mode == DetectorConfig.MODE_COLOR) return 1;
+        if (mode == DetectorConfig.MODE_EDGE) return 2;
+        return 0;
+    }
+
+    private static int spinnerToMode(int position) {
+        if (position == 1) return DetectorConfig.MODE_COLOR;
+        if (position == 2) return DetectorConfig.MODE_EDGE;
+        return DetectorConfig.MODE_AUTO;
+    }
+
+    private void setupListeners() {
+        presetSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View v, int position, long id) {
+                if (suppressCallbacks) return;
+                MarkerPreset preset = MarkerPreset.values()[position];
+                if (preset == MarkerPreset.CUSTOM) return;
+                suppressCallbacks = true;
+                widthField.setText(trim(preset.widthMm));
+                heightField.setText(trim(preset.heightMm));
+                suppressCallbacks = false;
+                config.markerWidthMm = preset.widthMm;
+                config.markerHeightMm = preset.heightMm;
+                schedulePreview();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+
+        modeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View v, int position, long id) {
+                if (suppressCallbacks) return;
+                config.mode = spinnerToMode(position);
+                schedulePreview();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+
+        TextWatcher sizeWatcher = new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int a, int b, int c) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int a, int b, int c) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if (suppressCallbacks) return;
+                config.markerWidthMm = parse(widthField);
+                config.markerHeightMm = parse(heightField);
+                suppressCallbacks = true;
+                presetSpinner.setSelection(MarkerPreset
+                        .match(config.markerWidthMm, config.markerHeightMm).ordinal());
+                suppressCallbacks = false;
+                schedulePreview();
+            }
+        };
+        widthField.addTextChangedListener(sizeWatcher);
+        heightField.addTextChangedListener(sizeWatcher);
+
+        hueLower.addOnChangeListener((slider, v, fromUser) -> {
+            if (suppressCallbacks) return;
+            config.hueLower = Math.round(v);
+            updateRangeLabels();
+            schedulePreview();
+        });
+        hueUpper.addOnChangeListener((slider, v, fromUser) -> {
+            if (suppressCallbacks) return;
+            config.hueUpper = Math.round(v);
+            updateRangeLabels();
+            schedulePreview();
+        });
+        saturation.addOnChangeListener((slider, v, fromUser) -> {
+            if (suppressCallbacks) return;
+            List<Float> values = saturation.getValues();
+            config.satLower = Math.round(values.get(0));
+            config.satUpper = Math.round(values.get(1));
+            updateRangeLabels();
+            schedulePreview();
+        });
+        value.addOnChangeListener((slider, v, fromUser) -> {
+            if (suppressCallbacks) return;
+            List<Float> values = value.getValues();
+            config.valLower = Math.round(values.get(0));
+            config.valUpper = Math.round(values.get(1));
+            updateRangeLabels();
+            schedulePreview();
+        });
+
+        beforeImage.setOnTouchListener((v, event) -> {
+            if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                v.performClick();
+                sampleColourAt(event.getX(), event.getY());
+            }
+            return true;
+        });
+    }
+
+    private double parse(TextInputEditText field) {
+        try {
+            CharSequence text = field.getText();
+            if (text == null || text.length() == 0) return 0;
+            return Double.parseDouble(text.toString());
+        } catch (NumberFormatException ex) {
+            return 0;
+        }
+    }
+
+    private void registerLaunchers() {
+        photoLauncher = registerForActivityResult(
+                new ActivityResultContracts.PickVisualMedia(), uri -> {
+                    if (uri != null) loadSample(uri);
+                });
+
+        exportLauncher = registerForActivityResult(
+                new ActivityResultContracts.CreateDocument("application/json"), uri -> {
+                    if (uri == null) return;
+                    applyToPreferences();
+                    try (OutputStream out = getContentResolver().openOutputStream(uri)) {
+                        if (out == null) throw new java.io.IOException("No output stream");
+                        SettingsIO.export(getSettings(), out);
+                        Toast.makeText(this, R.string.settings_export_ok,
+                                Toast.LENGTH_SHORT).show();
+                    } catch (Exception ex) {
+                        DialogHelper.error(this, ex.toString());
+                    }
+                });
+
+        importLauncher = registerForActivityResult(
+                new ActivityResultContracts.OpenDocument(), uri -> {
+                    if (uri == null) return;
+                    try (InputStream in = getContentResolver().openInputStream(uri)) {
+                        if (in == null) throw new java.io.IOException("No input stream");
+                        int applied = SettingsIO.importInto(getSettings(), in);
+                        config = DetectorConfig.from(getSettings());
+                        bindConfigToViews();
+                        schedulePreview();
+                        Toast.makeText(this,
+                                getString(R.string.settings_import_ok, applied),
+                                Toast.LENGTH_SHORT).show();
+                    } catch (Exception ex) {
+                        DialogHelper.error(this, ex.toString());
+                    }
+                });
+    }
+
+    // ---------------------------------------------------------------- sampling
+
+    private void pickSamplePhoto() {
+        photoLauncher.launch(new PickVisualMediaRequest.Builder()
+                .setMediaType(ActivityResultContracts.PickVisualMedia.ImageOnly.INSTANCE)
+                .build());
+    }
+
+    private void loadSample(Uri uri) {
+        worker.execute(() -> {
+            Bitmap decoded = null;
+            Exception failure = null;
+            try {
+                decoded = BitmapHelper.decode(this, uri, 1024);
+            } catch (Exception ex) {
+                failure = ex;
+            }
+            final Bitmap finalBitmap = decoded;
+            final Exception finalFailure = failure;
+            main.post(() -> {
+                if (finalBitmap == null) {
+                    DialogHelper.error(this, R.string.error_load_image, finalFailure);
+                    return;
+                }
+                sample = finalBitmap;
+                beforeImage.setImageBitmap(sample);
+                refreshPreview();
+            });
+        });
+    }
+
+    /**
+     * Maps a touch on the preview back into bitmap pixels through the inverse of
+     * the ImageView's own draw matrix, so it stays correct for any scale type or
+     * letterboxing, then derives an HSV window from the patch under the finger.
+     */
+    private void sampleColourAt(float viewX, float viewY) {
+        if (sample == null) {
+            pickSamplePhoto();
+            return;
+        }
+
+        Matrix inverse = new Matrix();
+        if (!beforeImage.getImageMatrix().invert(inverse)) return;
+
+        float[] point = {viewX, viewY};
+        inverse.mapPoints(point);
+        int x = Math.round(point[0]);
+        int y = Math.round(point[1]);
+        if (x < 0 || y < 0 || x >= sample.getWidth() || y >= sample.getHeight()) return;
+
+        DetectorConfig sampled = MarkerDetector.sampleColorAt(sample, x, y, SAMPLE_RADIUS_PX);
+        if (sampled == null) return;
+
+        config.hueLower = sampled.hueLower;
+        config.hueUpper = sampled.hueUpper;
+        config.satLower = sampled.satLower;
+        config.satUpper = sampled.satUpper;
+        config.valLower = sampled.valLower;
+        config.valUpper = sampled.valUpper;
+        // Sampling a colour is an explicit statement that colour is the cue.
+        if (config.mode == DetectorConfig.MODE_EDGE) config.mode = DetectorConfig.MODE_AUTO;
+
+        suppressCallbacks = true;
+        try {
+            hueLower.setValue(clamp(config.hueLower, 0, 179));
+            hueUpper.setValue(clamp(config.hueUpper, 0, 179));
+            setRange(saturation, config.satLower, config.satUpper);
+            setRange(value, config.valLower, config.valUpper);
+            modeSpinner.setSelection(modeToSpinner(config.mode));
+        } finally {
+            suppressCallbacks = false;
+        }
+        updateRangeLabels();
+        refreshPreview();
+    }
+
+    private void resetColorRange() {
+        config.hueLower = 0;
+        config.hueUpper = 179;
+        config.satLower = 60;
+        config.satUpper = 255;
+        config.valLower = 60;
+        config.valUpper = 255;
+        bindConfigToViews();
+        schedulePreview();
+    }
+
+    // ----------------------------------------------------------------- preview
+
+    private void updateRangeLabels() {
+        hueLabel.setText(getString(
+                config.hueLower > config.hueUpper
+                        ? R.string.settings_range_wrapping
+                        : R.string.settings_range_format,
+                config.hueLower, config.hueUpper));
+        saturationLabel.setText(getString(R.string.settings_range_format,
+                config.satLower, config.satUpper));
+        valueLabel.setText(getString(R.string.settings_range_format,
+                config.valLower, config.valUpper));
+        colorRange.setRange(config.hueLower, config.hueUpper);
+    }
+
+    /** Collapse a burst of slider ticks into one preview run. */
+    private void schedulePreview() {
+        main.removeCallbacks(previewTask);
+        main.postDelayed(previewTask, PREVIEW_DEBOUNCE_MS);
+    }
+
+    private void refreshPreview() {
+        if (sample == null) return;
+        final DetectorConfig snapshot = config.copy();
+
+        worker.execute(() -> {
+            final Bitmap mask = MarkerDetector.maskPreview(sample, snapshot);
+            final SignMeasurement found = MarkerDetector.detect(sample, snapshot);
+            main.post(() -> {
+                if (mask != null) afterImage.setImageBitmap(mask);
+                if (found != null) {
+                    detectStatus.setText(getString(R.string.settings_detected,
+                            Math.round(found.confidence() * 100)));
+                } else {
+                    detectStatus.setText(R.string.settings_not_detected);
+                }
+            });
+        });
+    }
+
+    // -------------------------------------------------------------------- menu
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu_activity_setting_actions, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        int id = item.getItemId();
+        if (id == R.id.action_activity_setting_export) {
+            exportLauncher.launch("object-measurement-profile.json");
+            return true;
+        }
+        if (id == R.id.action_activity_setting_import) {
+            importLauncher.launch(new String[]{"application/json", "text/plain", "*/*"});
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    // ------------------------------------------------------------------- saving
+
+    private void applyToPreferences() {
+        config.markerWidthMm = parse(widthField);
+        config.markerHeightMm = parse(heightField);
+        config.save(getSettings());
+        getSettings().edit()
+                .putString(DetectorConfig.KEY_UNIT,
+                        LengthUnit.values()[unitSpinner.getSelectedItemPosition()].name())
+                .apply();
+    }
+
+    private void saveAndClose() {
+        double width = parse(widthField);
+        double height = parse(heightField);
+        if (width <= 0 || height <= 0) {
+            Toast.makeText(this, R.string.settings_invalid_size, Toast.LENGTH_LONG).show();
+            return;
+        }
+        applyToPreferences();
+        Toast.makeText(this, R.string.settings_saved, Toast.LENGTH_SHORT).show();
+        finish();
+    }
 }
